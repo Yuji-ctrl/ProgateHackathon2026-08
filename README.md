@@ -36,7 +36,7 @@ FlutterのSDKは3.13.~~を使用
 flutter upgrade
 他プロジェクトで別のバージョンを使う予定のある人は、別途FVMを入れて複数バージョンをプロジェクトごとに切り替え
 
-仕様ライブラリは
+使用ライブラリは
 pubspec.yaml
 のdependenciesに記載
 Flutterのルートはこのファイルがある場所

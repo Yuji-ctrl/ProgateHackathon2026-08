@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -13,11 +15,28 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
+String formatDuration(int seconds) {
+  final hours = seconds ~/ 3600;
+  final minutes = (seconds % 3600) ~/ 60;
+  final remainingSeconds = seconds % 60;
+  if (hours > 0) return '$hours時間 $minutes分 $remainingSeconds秒';
+  if (minutes > 0) return '$minutes分 $remainingSeconds秒';
+  return '$remainingSeconds秒';
+}
+
+String formatClock(int seconds) {
+  final hours = seconds ~/ 3600;
+  final minutes = (seconds % 3600) ~/ 60;
+  final remainingSeconds = seconds % 60;
+  if (hours > 0) return '$hours:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+}
+
 class Task {
-  Task(this.title, this.category, this.minutes, {this.detail = '', this.ghost = false});
+  Task(this.title, this.category, this.seconds, {this.detail = '', this.ghost = false});
   final String title;
   final String category;
-  final int minutes;
+  final int seconds;
   final String detail;
   final bool ghost;
 }
@@ -45,10 +64,9 @@ class Shell extends StatefulWidget {
 class _ShellState extends State<Shell> {
   int _tab = 0;
   Task? _selectedTask;
+  final List<String> _categories = ['からだ', 'まなび', 'こころ', 'その他'];
   final List<Task> _active = [Task('朝のストレッチ', 'からだ', 15), Task('読書を20ページ', 'まなび', 30)];
   final List<Task> _album = [Task('水を8杯飲む', 'からだ', 10), Task('日記を書く', 'こころ', 15, ghost: true), Task('英単語を覚える', 'まなび', 25)];
-
-  void _openTimer(Task task) => setState(() => _selectedTask = task);
 
   void _finishTask(Task task) {
     setState(() {
@@ -56,6 +74,12 @@ class _ShellState extends State<Shell> {
       _album.insert(0, task);
       if (_selectedTask == task) _selectedTask = null;
     });
+  }
+
+  void _updateTask(Task original, Task updated) {
+    final index = _active.indexOf(original);
+    if (index == -1) return;
+    setState(() => _active[index] = updated);
   }
 
   @override
@@ -82,45 +106,50 @@ class _ShellState extends State<Shell> {
             Text('こおり日和', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
             Text('今日も、融ける前にひとつ。', style: TextStyle(fontSize: 12, color: Color(0xff8b7770))),
           ]),
-          actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.tune), tooltip: '設定')],
+          actions: [IconButton(onPressed: null, icon: const Icon(Icons.tune), tooltip: '設定')],
         ),
-        SliverToBoxAdapter(child: _homeTimer()),
-        SliverPadding(padding: const EdgeInsets.fromLTRB(20, 22, 20, 100), sliver: SliverList.builder(
-          itemCount: _active.length + 1,
-          itemBuilder: (_, index) => index == 0 ? const Padding(
-            padding: EdgeInsets.only(bottom: 12), child: Text('とりかかっている習慣', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          ) : _taskCard(_active[index - 1]),
-        )),
+        if (_active.isEmpty)
+          const SliverFillRemaining(hasScrollBody: false, child: Center(child: Text('予定されている習慣はありません。')))
+        else
+          SliverList.builder(itemCount: _active.length, itemBuilder: (_, index) => _timerButton(_active[index])),
+        const SliverToBoxAdapter(child: SizedBox(height: 100)),
       ]);
 
-  Widget _homeTimer() {
-    final task = _selectedTask ?? (_active.isEmpty ? null : _active.first);
-    if (task == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-      child: TimerPage(
-        key: ValueKey(task.title),
-        task: task,
-        compact: true,
-        onFinished: () => _finishTask(task),
-      ),
-    );
-  }
+  Widget _timerButton(Task task) => Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                child: OutlinedButton(
+                  onPressed: () => _openTimer(task),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.all(18),
+                    alignment: Alignment.centerLeft,
+                    side: const BorderSide(color: Color(0xffef7d68), width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.timer_outlined, color: Color(0xffef7d68)),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(task.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text('${task.category} ・ ${formatDuration(task.seconds)}', style: const TextStyle(color: Color(0xff89534a), fontSize: 12)),
+                    ])),
+                    const Icon(Icons.chevron_right, color: Color(0xffb5a8a2)),
+                  ]),
+                ),
+              );
 
-  Widget _taskCard(Task task) { final color = _categoryColor(task.category); return Card(
-    margin: const EdgeInsets.only(bottom: 12), elevation: 0, color: Colors.white,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: color.withAlpha(55))),
-    child: InkWell(borderRadius: BorderRadius.circular(18), onTap: () => _openTimer(task), child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
-      _MiniIce(color: color), const SizedBox(width: 14), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(task.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)), const SizedBox(height: 5),
-        Text('${task.category}  ・  ${task.minutes}分', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-        if (task.detail.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(task.detail, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-        ],
-      ])), const Icon(Icons.chevron_right, color: Color(0xffb5a8a2)),
-    ]))),
-  ); }
+  void _openTimer(Task task) {
+    setState(() => _selectedTask = task);
+    Navigator.push(context, MaterialPageRoute(builder: (_) => TaskTimerPage(
+      task: task,
+      categories: _categories,
+      onUpdated: (updated) => _updateTask(task, updated),
+      onFinished: () {
+        _finishTask(task);
+        Navigator.pop(context);
+      },
+    )));
+  }
 
   Widget _albumPage() => CustomScrollView(slivers: [
     const SliverAppBar(automaticallyImplyLeading: false, pinned: true, title: Text('アルバム', style: TextStyle(fontWeight: FontWeight.w800))),
@@ -136,34 +165,235 @@ class _ShellState extends State<Shell> {
     )),
   ]);
 
-  void _newTask() {
-    final titleController = TextEditingController();
-    final detailController = TextEditingController();
-    showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('新しい習慣をつくる', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 18),
-        TextField(controller: titleController, autofocus: true, decoration: const InputDecoration(labelText: '習慣の名前', hintText: '例：朝の水分補給', border: OutlineInputBorder())), const SizedBox(height: 12),
-        TextField(controller: detailController, maxLines: 3, decoration: const InputDecoration(labelText: '詳細', hintText: 'やることや目標を入力', border: OutlineInputBorder())), const SizedBox(height: 16),
-        SizedBox(width: double.infinity, child: FilledButton(onPressed: () { if (titleController.text.trim().isNotEmpty) { setState(() => _active.add(Task(titleController.text.trim(), 'その他', 15, detail: detailController.text.trim()))); Navigator.pop(context); } }, child: const Text('冷凍庫に入れる'))),
-      ]),
-    ));
-  }
+  void _newTask() => Navigator.push(context, MaterialPageRoute(builder: (_) => TaskCreationPage(
+      initialCategories: _categories,
+      onCategoryAdded: (category) => setState(() => _categories.add(category)),
+        onCreated: (task) => setState(() => _active.add(task)),
+      )));
 
   Color _categoryColor(String category) => {'からだ': const Color(0xff5cb5a5), 'まなび': const Color(0xffe39a49), 'こころ': const Color(0xff9d7ac2)}[category] ?? const Color(0xffef7d68);
 }
 
+class TaskTimerPage extends StatelessWidget {
+  const TaskTimerPage({super.key, required this.task, required this.categories, required this.onUpdated, required this.onFinished});
+  final Task task;
+  final List<String> categories;
+  final ValueChanged<Task> onUpdated;
+  final VoidCallback onFinished;
+
+  void _openTaskSettings(BuildContext context) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailPage(
+      task: task,
+      categories: categories,
+      onUpdated: onUpdated,
+      onFinished: onFinished,
+    )));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          title: const SizedBox.shrink(),
+          actions: [IconButton(onPressed: () => _openTaskSettings(context), icon: const Icon(Icons.tune), tooltip: 'タスク詳細を変更')],
+        ),
+        body: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+            child: Column(children: [
+              Text(task.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Text('${task.category} ・ ${formatDuration(task.seconds)}', style: const TextStyle(color: Color(0xff89534a), fontWeight: FontWeight.w700)),
+              if (task.detail.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(task.detail, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: Colors.grey.shade700)),
+              ],
+            ]),
+          ),
+          Expanded(child: Align(alignment: Alignment.bottomCenter, child: TimerPage(task: task, compact: true, showTaskDetails: false, largeTimer: true, onFinished: onFinished))),
+        ]),
+      );
+}
+
+class TaskCreationPage extends StatefulWidget {
+  const TaskCreationPage({super.key, required this.initialCategories, required this.onCategoryAdded, required this.onCreated});
+  final List<String> initialCategories;
+  final ValueChanged<String> onCategoryAdded;
+  final ValueChanged<Task> onCreated;
+
+  @override State<TaskCreationPage> createState() => _TaskCreationPageState();
+}
+
+class _TaskCreationPageState extends State<TaskCreationPage> {
+  final _titleController = TextEditingController();
+  final _detailController = TextEditingController();
+  final _hoursController = TextEditingController();
+  final _minutesController = TextEditingController();
+  final _secondsController = TextEditingController();
+  late final List<String> _categories = [...widget.initialCategories];
+  String _category = 'その他';
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _detailController.dispose();
+    _hoursController.dispose();
+    _minutesController.dispose();
+    _secondsController.dispose();
+    super.dispose();
+  }
+
+  void _createTask() {
+    final title = _titleController.text.trim();
+    final hours = int.tryParse(_hoursController.text.trim()) ?? 0;
+    final minutes = int.tryParse(_minutesController.text.trim()) ?? 0;
+    final secondsPart = int.tryParse(_secondsController.text.trim()) ?? 0;
+    if (title.isEmpty || hours < 0 || minutes < 0 || minutes > 59 || secondsPart < 0 || secondsPart > 59) return;
+    final seconds = hours * 3600 + minutes * 60 + secondsPart;
+    if (seconds <= 0) return;
+    widget.onCreated(Task(title, _category, seconds, detail: _detailController.text.trim()));
+    Navigator.pop(context);
+  }
+
+  Future<void> _addCategory() async {
+    final controller = TextEditingController();
+    final category = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ジャンルを追加'),
+        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'ジャンル名', border: OutlineInputBorder())),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('追加')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (!mounted || category == null || category.isEmpty || _categories.contains(category)) return;
+    setState(() {
+      _categories.add(category);
+      _category = category;
+    });
+    widget.onCategoryAdded(category);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('新しい習慣をつくる', style: TextStyle(fontWeight: FontWeight.w800))),
+        body: ListView(padding: const EdgeInsets.all(24), children: [
+          TextField(controller: _titleController, autofocus: true, decoration: const InputDecoration(labelText: 'タイトル', hintText: '例：朝の水分補給', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          TextField(controller: _detailController, maxLines: 4, decoration: const InputDecoration(labelText: '詳細', hintText: 'やることや目標を入力', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(initialValue: _category, decoration: const InputDecoration(labelText: 'ジャンル', border: OutlineInputBorder()), items: [
+            ..._categories.map((category) => DropdownMenuItem(value: category, child: Text(category))),
+            const DropdownMenuItem(value: '__add_category__', child: Text('＋ ジャンルを追加')),
+          ], onChanged: (value) {
+            if (value == '__add_category__') {
+              _addCategory();
+            } else if (value != null) {
+              setState(() => _category = value);
+            }
+          }),
+          const SizedBox(height: 16),
+          const Text('タイマー時間', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(controller: _hoursController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '時間', suffixText: '時間', border: OutlineInputBorder()))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: _minutesController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '分', suffixText: '分', border: OutlineInputBorder()))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: _secondsController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '秒', suffixText: '秒', border: OutlineInputBorder()))),
+          ]),
+          const SizedBox(height: 24),
+          FilledButton.icon(onPressed: _createTask, icon: const Icon(Icons.ac_unit), label: const Text('習慣を追加')),
+        ]),
+      );
+}
+
+class TaskDetailPage extends StatefulWidget {
+  const TaskDetailPage({super.key, required this.task, required this.categories, required this.onUpdated, required this.onFinished});
+  final Task task;
+  final List<String> categories;
+  final ValueChanged<Task> onUpdated;
+  final VoidCallback onFinished;
+
+  @override
+  State<TaskDetailPage> createState() => _TaskDetailPageState();
+}
+
+class _TaskDetailPageState extends State<TaskDetailPage> {
+  late final TextEditingController _titleController = TextEditingController(text: widget.task.title);
+  late final TextEditingController _detailController = TextEditingController(text: widget.task.detail);
+  late final TextEditingController _hoursController = TextEditingController(text: '${widget.task.seconds ~/ 3600}');
+  late final TextEditingController _minutesController = TextEditingController(text: '${(widget.task.seconds % 3600) ~/ 60}');
+  late final TextEditingController _secondsController = TextEditingController(text: '${widget.task.seconds % 60}');
+  late String _category = widget.task.category;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _detailController.dispose();
+    _hoursController.dispose();
+    _minutesController.dispose();
+    _secondsController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final hours = int.tryParse(_hoursController.text.trim()) ?? 0;
+    final minutes = int.tryParse(_minutesController.text.trim()) ?? 0;
+    final secondsPart = int.tryParse(_secondsController.text.trim()) ?? 0;
+    final seconds = hours * 3600 + minutes * 60 + secondsPart;
+    if (_titleController.text.trim().isEmpty || hours < 0 || minutes < 0 || minutes > 59 || secondsPart < 0 || secondsPart > 59 || seconds <= 0) return;
+    widget.onUpdated(Task(_titleController.text.trim(), _category, seconds, detail: _detailController.text.trim(), ghost: widget.task.ghost));
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('習慣の詳細', style: TextStyle(fontWeight: FontWeight.w800))),
+        body: ListView(padding: const EdgeInsets.all(24), children: [
+          TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'タイトル', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          TextField(controller: _detailController, maxLines: 4, decoration: const InputDecoration(labelText: '詳細', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(initialValue: _category, decoration: const InputDecoration(labelText: 'ジャンル', border: OutlineInputBorder()), items: widget.categories.map((category) => DropdownMenuItem(value: category, child: Text(category))).toList(), onChanged: (value) => setState(() => _category = value ?? _category)),
+          const SizedBox(height: 16),
+          const Text('タイマー時間', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(controller: _hoursController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '時間', suffixText: '時間', border: OutlineInputBorder()))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: _minutesController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '分', suffixText: '分', border: OutlineInputBorder()))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: _secondsController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '秒', suffixText: '秒', border: OutlineInputBorder()))),
+          ]),
+          const SizedBox(height: 24),
+          FilledButton.icon(onPressed: _save, icon: const Icon(Icons.save), label: const Text('変更を保存')),
+          const SizedBox(height: 28),
+          TimerPage(task: widget.task, onFinished: () { widget.onFinished(); Navigator.pop(context); }),
+        ]),
+      );
+}
+
 class TimerPage extends StatefulWidget {
-  const TimerPage({super.key, required this.task, required this.onFinished, this.compact = false});
+  const TimerPage({super.key, required this.task, required this.onFinished, this.compact = false, this.showTaskDetails = true, this.largeTimer = false});
   final Task task; final VoidCallback onFinished;
   final bool compact;
+  final bool showTaskDetails;
+  final bool largeTimer;
   @override State<TimerPage> createState() => _TimerPageState();
 }
 
 class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
-  late int _seconds = widget.task.minutes * 60;
+  late int _seconds = widget.task.seconds;
   Timer? _timer;
+  StreamSubscription<UserAccelerometerEvent>? _accelerometerSubscription;
   DateTime? _endsAt;
+  DateTime? _lastShakeAt;
+  double? _lastAcceleration;
   bool _running = false;
+  bool _waitingForShake = false;
 
   @override
   void initState() {
@@ -175,12 +405,42 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _accelerometerSubscription?.cancel();
     super.dispose();
+  }
+
+  void _startShakeDetection() {
+    _accelerometerSubscription?.cancel();
+    _accelerometerSubscription = userAccelerometerEventStream().listen(
+      (event) {
+        final acceleration = math.sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+        final previousAcceleration = _lastAcceleration;
+        _lastAcceleration = acceleration;
+        if (previousAcceleration == null) return;
+        final shakeStrength = (acceleration - previousAcceleration).abs();
+        final now = DateTime.now();
+        if (!_waitingForShake || shakeStrength < 4 || _lastShakeAt != null && now.difference(_lastShakeAt!) < const Duration(milliseconds: 1200)) return;
+        _lastShakeAt = now;
+        _waitingForShake = false;
+        _accelerometerSubscription?.cancel();
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
+        widget.onFinished();
+      },
+      onError: (_) {},
+      cancelOnError: false,
+    );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _running) _refreshRemaining();
+    if (state == AppLifecycleState.resumed) {
+      if (_running) _refreshRemaining();
+      if (_waitingForShake) _startShakeDetection();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _accelerometerSubscription?.cancel();
+      _accelerometerSubscription = null;
+      _lastAcceleration = null;
+    }
   }
 
   void _refreshRemaining() {
@@ -195,40 +455,70 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   void _toggle() {
-    if (_running) {
-      _timer?.cancel();
-      setState(() { _running = false; _endsAt = null; });
-      return;
-    }
+    if (_running) return;
+    if (_seconds <= 0) return;
     _endsAt = DateTime.now().add(Duration(seconds: _seconds));
     setState(() => _running = true);
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refreshRemaining());
   }
 
+  Future<void> _prepareToShake() async {
+    setState(() {
+      _waitingForShake = true;
+      _lastAcceleration = null;
+      _lastShakeAt = null;
+    });
+    _startShakeDetection();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('かき氷を完成させよう'),
+        content: const Text('端末を振ってください。\n振ると完成画面が表示されます。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+        ],
+      ),
+    );
+    if (!mounted || !_waitingForShake) return;
+    setState(() => _waitingForShake = false);
+    _accelerometerSubscription?.cancel();
+    _accelerometerSubscription = null;
+    _lastAcceleration = null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final progress = _seconds / (widget.task.minutes * 60);
+    final progress = (_seconds / widget.task.seconds).clamp(0.0, 1.0);
     final content = Card(
       elevation: 0, color: const Color(0xfffff0e8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-        Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (widget.largeTimer) const Spacer(),
+        if (widget.largeTimer)
+          Text(formatClock(_seconds), style: const TextStyle(fontSize: 64, fontWeight: FontWeight.w800, letterSpacing: 1))
+        else Row(children: [
+          Expanded(child: widget.showTaskDetails ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(widget.compact ? 'いま取り組む習慣' : 'とりかかる', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xff89534a))),
             const SizedBox(height: 4), Text(widget.task.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text('${widget.task.category} ・ ${formatDuration(widget.task.seconds)}', style: const TextStyle(fontSize: 12, color: Color(0xff89534a), fontWeight: FontWeight.w600)),
             if (widget.task.detail.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(widget.task.detail, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             ],
-          ]),),
+          ]) : const SizedBox.shrink()),
           Text('${_seconds ~/ 60}:${(_seconds % 60).toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: 1)),
         ]),
+        if (widget.largeTimer) const Spacer(),
         const SizedBox(height: 12),
         LinearProgressIndicator(value: progress, minHeight: 8, borderRadius: BorderRadius.circular(8), color: const Color(0xffef7d68), backgroundColor: Colors.white),
+        if (widget.compact) const Spacer(),
         const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: OutlinedButton.icon(onPressed: _toggle, icon: Icon(_running ? Icons.pause : Icons.play_arrow), label: Text(_running ? '一時停止' : 'タイマー開始'))),
-          const SizedBox(width: 10), Expanded(child: FilledButton.icon(onPressed: widget.onFinished, icon: const Icon(Icons.vibration), label: const Text('振って完成'))),
+          Expanded(child: OutlinedButton.icon(onPressed: _toggle, icon: Icon(_running ? Icons.timelapse : Icons.play_arrow), label: Text(_running ? '稼働中' : 'タイマー開始'))),
+          const SizedBox(width: 10), Expanded(child: FilledButton.icon(onPressed: _prepareToShake, icon: const Icon(Icons.vibration), label: Text(_waitingForShake ? '振ってください' : '振って完成'))),
         ]),
       ])),
     );
@@ -237,6 +527,5 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 }
 
-class _MiniIce extends StatelessWidget { const _MiniIce({required this.color}); final Color color; @override Widget build(BuildContext context) => SizedBox(width: 48, height: 48, child: _IceSundae(color: color, small: true)); }
 class _IceSundae extends StatelessWidget { const _IceSundae({required this.color, this.small = false}); final Color color; final bool small; @override Widget build(BuildContext context) { final size = small ? 78.0 : 190.0; return SizedBox(width: size, height: size * .95, child: CustomPaint(painter: _IcePainter(color))); } }
 class _IcePainter extends CustomPainter { _IcePainter(this.color); final Color color; @override void paint(Canvas canvas, Size size) { final cx = size.width / 2; final top = size.height * .12; final path = Path()..moveTo(cx, top)..cubicTo(size.width * .12, top + size.height * .12, size.width * .12, size.height * .5, size.width * .25, size.height * .7)..lineTo(size.width * .75, size.height * .7)..cubicTo(size.width * .88, size.height * .5, size.width * .88, top + size.height * .12, cx, top)..close(); canvas.drawPath(path, Paint()..color = color.withAlpha(210)); canvas.drawOval(Rect.fromLTWH(size.width * .18, size.height * .65, size.width * .64, size.height * .18), Paint()..color = const Color(0xffb96a50)); canvas.drawCircle(Offset(size.width * .33, size.height * .35), size.width * .06, Paint()..color = Colors.white.withAlpha(110)); } @override bool shouldRepaint(covariant _IcePainter old) => old.color != color; }

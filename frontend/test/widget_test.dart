@@ -16,19 +16,23 @@ void main() {
 
     // Verify that our counter starts at 0.
     expect(find.text('こおり日和'), findsOneWidget);
-    expect(find.text('朝のストレッチ'), findsNWidgets(2));
+    expect(find.text('朝のストレッチ'), findsOneWidget);
 
-    // Select a habit from the list; its timer remains on the home screen.
-    await tester.tap(find.text('朝のストレッチ').last);
+    // Timer buttons live on the home screen.
+    expect(find.text('タイマー開始'), findsNothing);
+
+    // Open a task by pressing its timer button frame.
+    await tester.tap(find.text('朝のストレッチ'));
     await tester.pumpAndSettle();
     expect(find.text('タイマー開始'), findsOneWidget);
     expect(find.text('振って完成'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    await tester.tap(find.text('振って完成'));
+    // Completion starts with an instruction dialog; shaking completes the habit.
+    await tester.tap(find.text('振って完成').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('アルバム'));
+    expect(find.textContaining('端末を振ってください'), findsOneWidget);
+    await tester.tap(find.text('キャンセル'));
     await tester.pumpAndSettle();
-    expect(find.text('朝のストレッチ'), findsOneWidget);
+    expect(find.text('振って完成'), findsOneWidget);
   });
 }

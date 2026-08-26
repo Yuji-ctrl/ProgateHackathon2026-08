@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -388,6 +389,7 @@ class TimerPage extends StatefulWidget {
 class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   late int _seconds = widget.task.seconds;
   Timer? _timer;
+  late final Ticker _ticker = Ticker((_) => _onTick());
   StreamSubscription<UserAccelerometerEvent>? _accelerometerSubscription;
   DateTime? _endsAt;
   DateTime? _lastShakeAt;
@@ -405,6 +407,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _ticker.dispose();
     _accelerometerSubscription?.cancel();
     super.dispose();
   }
@@ -434,9 +437,13 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (_running) _refreshRemaining();
+      if (_running) {
+        _refreshRemaining();
+        if (!_ticker.isActive) _ticker.start();
+      }
       if (_waitingForShake) _startShakeDetection();
     } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _ticker.stop();
       _accelerometerSubscription?.cancel();
       _accelerometerSubscription = null;
       _lastAcceleration = null;
@@ -444,13 +451,31 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   void _refreshRemaining() {
-    if (_endsAt == null) return;
+    if (!mounted || _endsAt == null) return;
     final remaining = _endsAt!.difference(DateTime.now()).inSeconds;
     if (remaining <= 0) {
       _timer?.cancel();
+      _ticker.stop();
       setState(() { _seconds = 0; _running = false; });
     } else {
       setState(() => _seconds = remaining);
+    }
+  }
+
+  void _onTick() {
+    if (!mounted || !_running || _endsAt == null) return;
+    final remaining = _endsAt!.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      _timer?.cancel();
+      _ticker.stop();
+      setState(() { _seconds = 0; _running = false; });
+      return;
+    }
+    final seconds = remaining.inSeconds;
+    if (seconds != _seconds) {
+      setState(() => _seconds = seconds);
+    } else {
+      setState(() {});
     }
   }
 
@@ -459,6 +484,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     if (_seconds <= 0) return;
     _endsAt = DateTime.now().add(Duration(seconds: _seconds));
     setState(() => _running = true);
+    if (!_ticker.isActive) _ticker.start();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refreshRemaining());
   }
 
@@ -490,14 +516,16 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final progress = (_seconds / widget.task.seconds).clamp(0.0, 1.0);
+    final progress = (_running && _endsAt != null
+      ? _endsAt!.difference(DateTime.now()).inMilliseconds / (widget.task.seconds * 1000)
+      : _seconds / widget.task.seconds).clamp(0.0, 1.0);
     final content = Card(
       elevation: 0, color: const Color(0xfffff0e8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
         if (widget.largeTimer) const Spacer(),
         if (widget.largeTimer)
-          Text(formatClock(_seconds), style: const TextStyle(fontSize: 64, fontWeight: FontWeight.w800, letterSpacing: 1))
+          Expanded(child: Center(child: _MeltingIceTimer(progress: progress, label: formatClock(_seconds))))
         else Row(children: [
           Expanded(child: widget.showTaskDetails ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(widget.compact ? 'いま取り組む習慣' : 'とりかかる', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xff89534a))),
@@ -513,7 +541,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
         ]),
         if (widget.largeTimer) const Spacer(),
         const SizedBox(height: 12),
-        LinearProgressIndicator(value: progress, minHeight: 8, borderRadius: BorderRadius.circular(8), color: const Color(0xffef7d68), backgroundColor: Colors.white),
+        if (!widget.largeTimer) LinearProgressIndicator(value: progress, minHeight: 8, borderRadius: BorderRadius.circular(8), color: const Color(0xffef7d68), backgroundColor: Colors.white),
         if (widget.compact) const Spacer(),
         const SizedBox(height: 12),
         Row(children: [
@@ -525,6 +553,146 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     if (widget.compact) return content;
     return Scaffold(appBar: AppBar(title: const Text('とりかかる', style: TextStyle(fontWeight: FontWeight.w800))), body: Padding(padding: const EdgeInsets.all(24), child: content));
   }
+}
+
+class _MeltingIceTimer extends StatefulWidget {
+  const _MeltingIceTimer({required this.progress, required this.label});
+  final double progress;
+  final String label;
+
+  @override State<_MeltingIceTimer> createState() => _MeltingIceTimerState();
+}
+
+class _MeltingIceTimerState extends State<_MeltingIceTimer> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+  late double _fromProgress;
+
+  @override
+  void initState() {
+    super.initState();
+    _fromProgress = widget.progress;
+  }
+
+  @override
+  void didUpdateWidget(covariant _MeltingIceTimer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.progress == widget.progress) return;
+    _fromProgress = _currentProgress;
+    _controller
+      ..reset()
+      ..forward();
+  }
+
+  double get _currentProgress => Tween<double>(begin: _fromProgress, end: widget.progress).transform(_controller.value);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _controller,
+        builder: (_, child) {
+          final progress = _currentProgress;
+          return SizedBox.expand(
+            child: CustomPaint(
+              painter: _MeltingIcePainter(progress),
+              child: Center(child: Text(widget.label, style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w800, color: Color(0xff263238), letterSpacing: 1))),
+            ),
+          );
+        },
+      );
+}
+
+class _MeltingIcePainter extends CustomPainter {
+  _MeltingIcePainter(this.progress);
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final iceHeight = size.height * (.25 + progress * .75);
+    final bottom = size.height * .82;
+    final top = bottom - iceHeight;
+    final center = size.width / 2;
+    final iceWidth = size.width * .62;
+    final left = center - iceWidth / 2;
+    final right = center + iceWidth / 2;
+    final corner = size.width * .035;
+    final meltWave = size.height * (.008 + (1 - progress) * .018);
+    final ice = Path()
+      ..moveTo(left + corner, bottom)
+      ..lineTo(left, bottom - corner)
+      ..lineTo(left, top + corner)
+      ..quadraticBezierTo(left, top, left + corner, top)
+      ..cubicTo(left + iceWidth * .18, top + meltWave, left + iceWidth * .3, top - meltWave, left + iceWidth * .45, top + meltWave * .4)
+      ..cubicTo(left + iceWidth * .6, top + meltWave * 1.2, left + iceWidth * .76, top - meltWave * .5, right - corner, top)
+      ..quadraticBezierTo(right, top, right, top + corner)
+      ..lineTo(right, bottom - corner)
+      ..quadraticBezierTo(right, bottom, right - corner, bottom)
+      ..close();
+
+    final icePaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.white.withAlpha(215),
+          const Color(0xffb6edf2).withAlpha(205),
+          const Color(0xff59bdcf).withAlpha(175),
+        ],
+      ).createShader(Rect.fromLTWH(0, top, size.width, iceHeight));
+    canvas.drawShadow(ice, const Color(0xff398c99), 12, true);
+    canvas.drawPath(ice, icePaint);
+    canvas.drawPath(ice, Paint()..style = PaintingStyle.stroke..strokeWidth = 2.5..color = const Color(0xff55b9c7).withAlpha(190));
+
+    final meltLine = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withAlpha(70);
+    final waterline = Path()
+      ..moveTo(left + iceWidth * .06, top + meltWave * .5)
+      ..cubicTo(left + iceWidth * .2, top - meltWave, left + iceWidth * .35, top + meltWave, left + iceWidth * .5, top)
+      ..cubicTo(left + iceWidth * .65, top - meltWave, left + iceWidth * .8, top + meltWave, right - iceWidth * .06, top + meltWave * .3);
+    canvas.drawPath(waterline, meltLine);
+
+    final facet = Path()
+      ..moveTo(center - iceWidth * .42, top + iceHeight * .06)
+      ..lineTo(center - iceWidth * .12, top + iceHeight * .42)
+      ..lineTo(center - iceWidth * .08, bottom - 3)
+      ..lineTo(center + iceWidth * .18, top + iceHeight * .5)
+      ..close();
+    canvas.drawPath(facet, Paint()..color = Colors.white.withAlpha(48));
+
+    final crackPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xff3f9eae).withAlpha((110 * progress).round());
+    final crack = Path()
+      ..moveTo(center - iceWidth * .28, top + iceHeight * .24)
+      ..lineTo(center - iceWidth * .12, top + iceHeight * .36)
+      ..lineTo(center - iceWidth * .2, top + iceHeight * .48)
+      ..moveTo(center + iceWidth * .28, top + iceHeight * .2)
+      ..lineTo(center + iceWidth * .14, top + iceHeight * .34)
+      ..lineTo(center + iceWidth * .24, top + iceHeight * .45);
+    canvas.drawPath(crack, crackPaint);
+
+    final highlightPaint = Paint()..color = Colors.white.withAlpha((190 * progress).round());
+    canvas.drawOval(Rect.fromCenter(center: Offset(center - iceWidth * .25, top + iceHeight * .28), width: size.width * .08, height: iceHeight * .17), highlightPaint);
+    canvas.drawCircle(Offset(center + iceWidth * .25, top + iceHeight * .36), size.width * .025, highlightPaint);
+
+    final puddleWidth = size.width * (.25 + (1 - progress) * .35);
+    canvas.drawOval(Rect.fromCenter(center: Offset(center, bottom + 12), width: puddleWidth, height: 18), Paint()..color = const Color(0xff62c7d5).withAlpha(145));
+    if (progress < .7) {
+      canvas.drawCircle(Offset(size.width * .75, bottom - 18), 5, Paint()..color = const Color(0xff62c7d5).withAlpha(175));
+      canvas.drawCircle(Offset(size.width * .27, bottom + 5), 3, Paint()..color = const Color(0xff62c7d5).withAlpha(155));
+    }
+  }
+
+  @override bool shouldRepaint(covariant _MeltingIcePainter old) => old.progress != progress;
 }
 
 class _IceSundae extends StatelessWidget { const _IceSundae({required this.color, this.small = false}); final Color color; final bool small; @override Widget build(BuildContext context) { final size = small ? 78.0 : 190.0; return SizedBox(width: size, height: size * .95, child: CustomPaint(painter: _IcePainter(color))); } }

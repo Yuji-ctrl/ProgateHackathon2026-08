@@ -60,12 +60,39 @@ class _AlbumState extends State<Album> {
       ),
       child: CustomScrollView(
         slivers: [
-          const SliverAppBar(
+          SliverAppBar(
             automaticallyImplyLeading: false,
             pinned: true,
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
-            title: Text('アルバム', style: TextStyle(fontWeight: FontWeight.w800)),
+            title: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: const Color(0xfffff5dc),
+                    border: Border.all(
+                      color: const Color(0xffc46f83),
+                      width: 1.5,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x33c46f83),
+                        offset: Offset(0, 2),
+                        blurRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.home_rounded,
+                    size: 21,
+                    color: Color(0xff5796a0),
+                  ),
+                ),
+              ],
+            ),
           ),
           SliverToBoxAdapter(child: _AlbumIntro(count: widget.tasks.length)),
           if (widget.tasks.isEmpty)
@@ -108,19 +135,19 @@ class _AlbumIntro extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'できたことの展示室',
+                'アルバム',
                 style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
               ),
               SizedBox(height: 3),
               Text(
-                'ひとつひとつの習慣を、思い出にしまおう。',
+                '溶けきる前に、確かな思い出へ',
                 style: TextStyle(fontSize: 12, color: Color(0xff8b7770)),
               ),
             ],
           ),
         ),
         Text(
-          '$count pieces',
+          '$count cup',
           style: const TextStyle(
             fontSize: 11,
             color: Color(0xff9b7062),
@@ -168,12 +195,12 @@ class _AlbumBook extends StatelessWidget {
           margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
           padding: const EdgeInsets.fromLTRB(30, 16, 10, 10),
           decoration: BoxDecoration(
-            color: const Color(0xffbfe5e8),
-            border: Border.all(color: const Color(0xff5796a0), width: 2.5),
+            color: const Color(0xfff2c1ca),
+            border: Border.all(color: const Color(0xffb95770), width: 2.5),
             borderRadius: BorderRadius.circular(12),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x3d5796a0),
+                color: Color(0x3db95770),
                 offset: Offset(0, 7),
                 blurRadius: 0,
               ),
@@ -219,20 +246,20 @@ class _AlbumBook extends StatelessWidget {
                       IconButton(
                         onPressed: page == 0 ? null : onPrevious,
                         icon: const Icon(Icons.chevron_left),
-                        color: const Color(0xff4d8993),
+                        color: const Color(0xffa84963),
                         tooltip: '前のページ',
                       ),
                       Text(
                         '${page + 1} / $pageCount',
                         style: const TextStyle(
-                          color: Color(0xff4d8993),
+                          color: Color(0xffa84963),
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                       IconButton(
                         onPressed: page == pageCount - 1 ? null : onNext,
                         icon: const Icon(Icons.chevron_right),
-                        color: const Color(0xff4d8993),
+                        color: const Color(0xffa84963),
                         tooltip: '次のページ',
                       ),
                     ],
@@ -272,7 +299,7 @@ class _AlbumPage extends StatelessWidget {
       borderRadius: BorderRadius.circular(5),
       boxShadow: const [
         BoxShadow(
-          color: Color(0x335796a0),
+          color: Color(0x33b95770),
           offset: Offset(2, 2),
           blurRadius: 2,
         ),
@@ -305,7 +332,7 @@ class _AlbumPage extends StatelessWidget {
             style: TextStyle(
               fontSize: 10,
               letterSpacing: 1.2,
-              color: Color(0xff5796a0),
+              color: Color(0xffb95770),
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -368,7 +395,7 @@ class _PageEdge extends StatelessWidget {
     width: 3,
     decoration: const BoxDecoration(
       gradient: LinearGradient(
-        colors: [Color(0x225796a0), Color(0x885796a0), Color(0x225796a0)],
+        colors: [Color(0x22b95770), Color(0x88b95770), Color(0x22b95770)],
       ),
     ),
   );

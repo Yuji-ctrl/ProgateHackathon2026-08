@@ -4,20 +4,22 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/task.dart';
 import '../utils/time_format.dart';
 import 'ice_painters.dart';
 
 class TimerPage extends StatefulWidget {
-  const TimerPage({super.key, required this.task, required this.onFinished, this.compact = false, this.showTaskDetails = true, this.largeTimer = false});
+  const TimerPage({super.key, required this.task, required this.onFinished, this.onStarted, this.compact = false, this.showTaskDetails = true, this.largeTimer = false});
   final Task task; final VoidCallback onFinished;
+  final ValueChanged<DateTime>? onStarted;
   final bool compact; final bool showTaskDetails; final bool largeTimer;
   @override State<TimerPage> createState() => _TimerPageState();
 }
 
 class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
-  late int _seconds = widget.task.seconds;
+  late int _seconds;
   Timer? _timer;
   late final Ticker _ticker = Ticker((_) => _onTick());
   StreamSubscription<UserAccelerometerEvent>? _accelerometerSubscription;
@@ -25,7 +27,23 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   bool _running = false; bool _waitingForShake = false;
 
   @override
-  void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); }
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final startedAt = widget.task.startedAt;
+    if (startedAt != null) {
+      _endsAt = startedAt.add(Duration(seconds: widget.task.seconds));
+      final remaining = _endsAt!.difference(DateTime.now()).inSeconds;
+      _seconds = remaining > 0 ? remaining : 0;
+      if (_seconds > 0) {
+        _running = true;
+        _ticker.start();
+        _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refreshRemaining());
+      }
+    } else {
+      _seconds = widget.task.seconds;
+    }
+  }
 
   @override
   void dispose() { WidgetsBinding.instance.removeObserver(this); _timer?.cancel(); _ticker.dispose(); _accelerometerSubscription?.cancel(); super.dispose(); }
@@ -68,9 +86,12 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     if (seconds != _seconds) setState(() => _seconds = seconds); else setState(() {});
   }
 
-  void _toggle() {
+  Future<void> _toggle() async {
     if (_running || _seconds <= 0) return;
-    _endsAt = DateTime.now().add(Duration(seconds: _seconds)); setState(() => _running = true);
+    final startedAt = DateTime.now();
+    await Supabase.instance.client.from('ice_tasks').update({'started_at': startedAt.toUtc().toIso8601String()}).eq('id', widget.task.id as String);
+    widget.onStarted?.call(startedAt);
+    _endsAt = startedAt.add(Duration(seconds: _seconds)); setState(() => _running = true);
     if (!_ticker.isActive) _ticker.start(); _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refreshRemaining());
   }
 

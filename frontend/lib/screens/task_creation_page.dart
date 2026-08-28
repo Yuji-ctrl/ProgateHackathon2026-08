@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/task.dart';
 
@@ -22,7 +23,7 @@ class _TaskCreationPageState extends State<TaskCreationPage> {
   @override
   void dispose() { _titleController.dispose(); _detailController.dispose(); _hoursController.dispose(); _minutesController.dispose(); _secondsController.dispose(); super.dispose(); }
 
-  void _createTask() {
+  Future<void> _createTask() async {
     final title = _titleController.text.trim();
     final hours = int.tryParse(_hoursController.text.trim()) ?? 0;
     final minutes = int.tryParse(_minutesController.text.trim()) ?? 0;
@@ -30,7 +31,22 @@ class _TaskCreationPageState extends State<TaskCreationPage> {
     if (title.isEmpty || hours < 0 || minutes < 0 || minutes > 59 || secondsPart < 0 || secondsPart > 59) return;
     final seconds = hours * 3600 + minutes * 60 + secondsPart;
     if (seconds <= 0) return;
-    widget.onCreated(Task(title, _category, seconds, detail: _detailController.text.trim())); Navigator.pop(context);
+    final detail = _detailController.text.trim();
+
+    final supabase = Supabase.instance.client;
+    final startedAt = DateTime.now();
+    final iceTask = await supabase.from('ice_tasks').insert({
+      'task_name': title,
+      'melt_minutes': seconds,
+      'category': _category,
+      'detail': detail,
+      'started_at': startedAt.toUtc().toIso8601String(),
+    }).select().single();
+
+    if (!mounted) return;
+    final task = Task(title, _category, seconds, id: iceTask['id'] as String, detail: detail, startedAt: startedAt);
+    widget.onCreated(task);
+    Navigator.pop(context, task);
   }
 
   Future<void> _addCategory() async {

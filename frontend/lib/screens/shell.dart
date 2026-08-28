@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/task.dart';
-import '../widgets/ice_painters.dart';
+import 'album.dart';
 import 'task_creation_page.dart';
 import 'task_detail_page.dart';
 import 'task_timer_page.dart';
 
 class Shell extends StatefulWidget {
   const Shell({super.key});
-  @override State<Shell> createState() => _ShellState();
+  @override
+  State<Shell> createState() => _ShellState();
 }
 
 class _ShellState extends State<Shell> {
@@ -28,7 +29,10 @@ class _ShellState extends State<Shell> {
   void initState() {
     super.initState();
     _loadTasks();
-    _expiryTimer = Timer.periodic(const Duration(seconds: 1), (_) => _checkExpired());
+    _expiryTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _checkExpired(),
+    );
   }
 
   @override
@@ -38,13 +42,15 @@ class _ShellState extends State<Shell> {
   }
 
   Task _taskFromRow(Map<String, dynamic> row) => Task(
-        row['task_name'] as String,
-        row['category'] as String? ?? 'その他',
-        row['melt_minutes'] as int,
-        id: row['id'] as String,
-        detail: row['detail'] as String? ?? '',
-        startedAt: row['started_at'] != null ? DateTime.parse(row['started_at'] as String) : null,
-      );
+    row['task_name'] as String,
+    row['category'] as String? ?? 'その他',
+    row['melt_minutes'] as int,
+    id: row['id'] as String,
+    detail: row['detail'] as String? ?? '',
+    startedAt: row['started_at'] != null
+        ? DateTime.parse(row['started_at'] as String)
+        : null,
+  );
 
   Future<void> _loadTasks() async {
     final rows = await Supabase.instance.client.from('ice_tasks').select();
@@ -52,10 +58,14 @@ class _ShellState extends State<Shell> {
     setState(() {
       _active
         ..clear()
-        ..addAll(rows.where((r) => r['is_completed'] != true).map(_taskFromRow));
+        ..addAll(
+          rows.where((r) => r['is_completed'] != true).map(_taskFromRow),
+        );
       _album
         ..clear()
-        ..addAll(rows.where((r) => r['is_completed'] == true).map(_taskFromRow));
+        ..addAll(
+          rows.where((r) => r['is_completed'] == true).map(_taskFromRow),
+        );
       _loading = false;
     });
     _checkExpired();
@@ -63,15 +73,19 @@ class _ShellState extends State<Shell> {
 
   Future<void> _finishTask(Task task) async {
     final supabase = Supabase.instance.client;
-    final cup = await supabase.from('cups').insert({
-      'title': task.title,
-      'is_completed': true,
-    }).select().single();
-    await supabase.from('ice_tasks').update({
-      'cup_id': cup['id'],
-      'is_completed': true,
-      'completed_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', task.id as String);
+    final cup = await supabase
+        .from('cups')
+        .insert({'title': task.title, 'is_completed': true})
+        .select()
+        .single();
+    await supabase
+        .from('ice_tasks')
+        .update({
+          'cup_id': cup['id'],
+          'is_completed': true,
+          'completed_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', task.id as String);
 
     if (!mounted) return;
     setState(() {
@@ -98,60 +112,117 @@ class _ShellState extends State<Shell> {
   bool _isExpired(Task task) {
     final startedAt = task.startedAt;
     if (startedAt == null) return false;
-    return DateTime.now().isAfter(startedAt.add(Duration(seconds: task.seconds)));
+    return DateTime.now().isAfter(
+      startedAt.add(Duration(seconds: task.seconds)),
+    );
   }
 
   void _checkExpired() {
     if (_forcedTaskId != null || !mounted) return;
     Task? expired;
     for (final task in _active) {
-      if (_isExpired(task)) { expired = task; break; }
+      if (_isExpired(task)) {
+        expired = task;
+        break;
+      }
     }
     if (expired == null) return;
     final task = expired;
     _forcedTaskId = task.id;
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => TaskDetailPage(
-      task: task,
-      categories: _categories,
-      onUpdated: (updated) => _updateTask(task, updated),
-      onFinished: () => _finishTask(task),
-      onDeleted: () => _deleteTask(task),
-      forced: true,
-    ))).then((_) => _forcedTaskId = null);
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => TaskDetailPage(
+              task: task,
+              categories: _categories,
+              onUpdated: (updated) => _updateTask(task, updated),
+              onFinished: () => _finishTask(task),
+              onDeleted: () => _deleteTask(task),
+              forced: true,
+            ),
+          ),
+        )
+        .then((_) => _forcedTaskId = null);
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(child: _loading ? const Center(child: CircularProgressIndicator()) : (_tab == 0 ? _home() : _albumPage())),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _tab, onDestinationSelected: (index) => setState(() => _tab = index),
-          backgroundColor: Colors.white, indicatorColor: const Color(0xffffe1d4),
-          destinations: const [
-            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'ホーム'),
-            NavigationDestination(icon: Icon(Icons.photo_library_outlined), selectedIcon: Icon(Icons.photo_library), label: 'アルバム'),
+    body: SafeArea(
+      child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : (_tab == 0
+                ? _home()
+                : Album(tasks: _album, categoryColor: _categoryColor)),
+    ),
+    bottomNavigationBar: NavigationBar(
+      selectedIndex: _tab,
+      onDestinationSelected: (index) => setState(() => _tab = index),
+      backgroundColor: Colors.white,
+      indicatorColor: const Color(0xffffe1d4),
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: 'ホーム',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.photo_library_outlined),
+          selectedIcon: Icon(Icons.photo_library),
+          label: 'アルバム',
+        ),
+      ],
+    ),
+    floatingActionButton: _tab == 0
+        ? FloatingActionButton.extended(
+            onPressed: _newTask,
+            backgroundColor: const Color(0xffef7d68),
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.add),
+            label: const Text('新しい習慣'),
+          )
+        : null,
+  );
+
+  Widget _home() => CustomScrollView(
+    slivers: [
+      SliverAppBar(
+        automaticallyImplyLeading: false,
+        pinned: true,
+        backgroundColor: const Color(0xfffffaf4),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'こおり日和',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+            ),
+            Text(
+              '今日も、融ける前にひとつ。',
+              style: TextStyle(fontSize: 12, color: Color(0xff8b7770)),
+            ),
           ],
         ),
-        floatingActionButton: _tab == 0 ? FloatingActionButton.extended(
-          onPressed: _newTask, backgroundColor: const Color(0xffef7d68), foregroundColor: Colors.white,
-          icon: const Icon(Icons.add), label: const Text('新しい習慣'),
-        ) : null,
-      );
-
-  Widget _home() => CustomScrollView(slivers: [
-    SliverAppBar(
-      automaticallyImplyLeading: false, pinned: true, backgroundColor: const Color(0xfffffaf4),
-      title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('こおり日和', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-        Text('今日も、融ける前にひとつ。', style: TextStyle(fontSize: 12, color: Color(0xff8b7770))),
-      ]),
-      actions: [IconButton(onPressed: null, icon: const Icon(Icons.tune), tooltip: '設定')],
-    ),
-    if (_active.isEmpty)
-      const SliverFillRemaining(hasScrollBody: false, child: Center(child: Text('予定されている習慣はありません。')))
-    else
-      SliverList.builder(itemCount: _active.length, itemBuilder: (_, index) => _timerButton(_active[index])),
-    const SliverToBoxAdapter(child: SizedBox(height: 100)),
-  ]);
+        actions: [
+          IconButton(
+            onPressed: null,
+            icon: const Icon(Icons.tune),
+            tooltip: '設定',
+          ),
+        ],
+      ),
+      if (_active.isEmpty)
+        const SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: Text('予定されている習慣はありません。')),
+        )
+      else
+        SliverList.builder(
+          itemCount: _active.length,
+          itemBuilder: (_, index) => _timerButton(_active[index]),
+        ),
+      const SliverToBoxAdapter(child: SizedBox(height: 100)),
+    ],
+  );
 
   Widget _timerButton(Task task) {
     final color = _categoryColor(task.category);
@@ -160,52 +231,76 @@ class _ShellState extends State<Shell> {
       child: OutlinedButton(
         onPressed: () => _openTimer(task),
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.all(18), alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.all(18),
+          alignment: Alignment.centerLeft,
           side: BorderSide(color: color, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
-        child: Row(children: [
-          Icon(Icons.timer_outlined, color: color), const SizedBox(width: 12),
-          Expanded(child: Text(task.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
-          const Icon(Icons.chevron_right, color: Color(0xffb5a8a2)),
-        ]),
+        child: Row(
+          children: [
+            Icon(Icons.timer_outlined, color: color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                task.title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Color(0xffb5a8a2)),
+          ],
+        ),
       ),
     );
   }
 
   void _openTimer(Task task) {
     setState(() => _selectedTask = task);
-    Navigator.push(context, MaterialPageRoute(builder: (_) => TaskTimerPage(
-      task: task, categories: _categories,
-      onUpdated: (updated) => _updateTask(task, updated),
-      onFinished: () { _finishTask(task); Navigator.pop(context); },
-      onDeleted: () { _deleteTask(task); Navigator.pop(context); },
-    )));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TaskTimerPage(
+          task: task,
+          categories: _categories,
+          onUpdated: (updated) => _updateTask(task, updated),
+          onFinished: () {
+            _finishTask(task);
+            Navigator.pop(context);
+          },
+          onDeleted: () {
+            _deleteTask(task);
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
   }
 
-  Widget _albumPage() => CustomScrollView(slivers: [
-    const SliverAppBar(automaticallyImplyLeading: false, pinned: true, title: Text('アルバム', style: TextStyle(fontWeight: FontWeight.w800))),
-    SliverPadding(padding: const EdgeInsets.all(20), sliver: SliverGrid.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: .82),
-      itemCount: _album.length, itemBuilder: (_, index) { final task = _album[index]; final color = _categoryColor(task.category); return Card(
-        elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: Center(child: Stack(alignment: Alignment.center, children: [IceSundae(color: color, small: true), if (task.ghost) const Positioned(right: 0, top: 0, child: Text('👻', style: TextStyle(fontSize: 25)))]))),
-          Text(task.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 4),
-          Text(task.ghost ? '亡霊のかき氷' : '完成 ・ ${task.category}', style: TextStyle(fontSize: 11, color: task.ghost ? const Color(0xff8e6aae) : color)),
-        ])),
-      ); },
-    )),
-  ]);
-
   Future<void> _newTask() async {
-    final created = await Navigator.push<Task>(context, MaterialPageRoute(builder: (_) => TaskCreationPage(
-      initialCategories: _categories,
-      onCategoryAdded: (category) => setState(() => _categories.add(category)),
-      onCreated: (task) => setState(() => _active.add(task)),
-    )));
+    final created = await Navigator.push<Task>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TaskCreationPage(
+          initialCategories: _categories,
+          onCategoryAdded: (category) =>
+              setState(() => _categories.add(category)),
+          onCreated: (task) => setState(() => _active.add(task)),
+        ),
+      ),
+    );
     if (created == null || !mounted) return;
     _openTimer(created);
   }
 
-  Color _categoryColor(String category) => {'からだ': const Color(0xff5cb5a5), 'まなび': const Color(0xffe39a49), 'こころ': const Color(0xff9d7ac2)}[category] ?? const Color(0xffef7d68);
+  Color _categoryColor(String category) =>
+      {
+        'からだ': const Color(0xff5cb5a5),
+        'まなび': const Color(0xffe39a49),
+        'こころ': const Color(0xff9d7ac2),
+      }[category] ??
+      const Color(0xffef7d68);
 }

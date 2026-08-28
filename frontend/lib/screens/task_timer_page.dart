@@ -6,14 +6,19 @@ import '../widgets/timer_page.dart';
 import 'task_detail_page.dart';
 
 class TaskTimerPage extends StatelessWidget {
-  const TaskTimerPage({super.key, required this.task, required this.categories, required this.onUpdated, required this.onFinished});
+  const TaskTimerPage({super.key, required this.task, required this.categories, required this.onUpdated, required this.onFinished, required this.onDeleted});
   final Task task;
   final List<String> categories;
   final ValueChanged<Task> onUpdated;
   final VoidCallback onFinished;
+  final VoidCallback onDeleted;
 
   void _openTaskSettings(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailPage(task: task, categories: categories, onUpdated: onUpdated, onFinished: onFinished)));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailPage(task: task, categories: categories, onUpdated: onUpdated, onFinished: onFinished, onDeleted: onDeleted)));
+  }
+
+  void _handleStarted(DateTime startedAt) {
+    onUpdated(Task(task.title, task.category, task.seconds, id: task.id, detail: task.detail, ghost: task.ghost, startedAt: startedAt));
   }
 
   @override
@@ -25,7 +30,10 @@ class TaskTimerPage extends StatelessWidget {
             const SizedBox(height: 8), Text('${task.category} ・ ${formatDuration(task.seconds)}', style: const TextStyle(color: Color(0xff89534a), fontWeight: FontWeight.w700)),
             if (task.detail.isNotEmpty) ...[const SizedBox(height: 8), Text(task.detail, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: Colors.grey.shade700))],
           ])),
-          Expanded(child: Align(alignment: Alignment.bottomCenter, child: TimerPage(task: task, compact: true, showTaskDetails: false, largeTimer: true, onFinished: onFinished))),
+          Expanded(child: Align(alignment: Alignment.bottomCenter, child: TimerPage(
+            task: task, compact: true, showTaskDetails: false, largeTimer: true,
+            onFinished: onFinished, onStarted: _handleStarted,
+          ))),
         ]),
       );
 }

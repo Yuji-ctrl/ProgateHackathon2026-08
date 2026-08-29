@@ -4,6 +4,67 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/task.dart';
 import 'task_timer_page.dart';
 
+class _TaskFormValue {
+  const _TaskFormValue({
+    required this.title,
+    required this.detail,
+    required this.seconds,
+    required this.categoryKey,
+  });
+
+  final String title;
+  final String detail;
+  final int seconds;
+  final String categoryKey;
+}
+
+class _TaskFormController {
+  const _TaskFormController();
+
+  static String colorKey(Color color) => 'color_${color.toARGB32().toRadixString(16)}';
+
+  static int parseSeconds({
+    required String hours,
+    required String minutes,
+    required String seconds,
+  }) {
+    final hoursValue = int.tryParse(hours.trim()) ?? 0;
+    final minutesValue = int.tryParse(minutes.trim()) ?? 0;
+    final secondsValue = int.tryParse(seconds.trim()) ?? 0;
+    return hoursValue * 3600 + minutesValue * 60 + secondsValue;
+  }
+
+  static bool isValidDuration({
+    required String hours,
+    required String minutes,
+    required String seconds,
+  }) {
+    final hoursValue = int.tryParse(hours.trim()) ?? 0;
+    final minutesValue = int.tryParse(minutes.trim()) ?? 0;
+    final secondsValue = int.tryParse(seconds.trim()) ?? 0;
+    if (hoursValue < 0 || minutesValue < 0 || secondsValue < 0) return false;
+    if (minutesValue > 59 || secondsValue > 59) return false;
+    return parseSeconds(hours: hours, minutes: minutes, seconds: seconds) > 0;
+  }
+
+  static _TaskFormValue buildValue({
+    required String title,
+    required String detail,
+    required String hours,
+    required String minutes,
+    required String seconds,
+    required Color selectedColor,
+  }) {
+    final validatedSeconds = parseSeconds(hours: hours, minutes: minutes, seconds: seconds);
+    return _TaskFormValue(
+      title: title.trim(),
+      detail: detail.trim(),
+      seconds: validatedSeconds,
+      categoryKey: colorKey(selectedColor),
+    );
+  }
+}
+
 class TaskDetailPage extends StatefulWidget {
   const TaskDetailPage({
     super.key,
@@ -39,8 +100,6 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     Color(0xff2ec4b6),
     Color(0xff8c4c32),
   ];
-
-  static String _colorKey(Color color) => 'color_${color.toARGB32().toRadixString(16)}';
 
   late final TextEditingController _titleController = TextEditingController(text: widget.task.title);
   late final TextEditingController _detailController = TextEditingController(text: widget.task.detail);
@@ -108,23 +167,34 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   }
 
   Future<void> _save() async {
-    final hours = int.tryParse(_hoursController.text.trim()) ?? 0; final minutes = int.tryParse(_minutesController.text.trim()) ?? 0; final secondsPart = int.tryParse(_secondsController.text.trim()) ?? 0; final seconds = hours * 3600 + minutes * 60 + secondsPart;
-    if (_titleController.text.trim().isEmpty || hours < 0 || minutes < 0 || minutes > 59 || secondsPart < 0 || secondsPart > 59 || seconds <= 0) return;
-    final title = _titleController.text.trim();
-    final detail = _detailController.text.trim();
-    final categoryKey = _colorKey(_selectedColor);
+    final form = _TaskFormController.buildValue(
+      title: _titleController.text,
+      detail: _detailController.text,
+      hours: _hoursController.text,
+      minutes: _minutesController.text,
+      seconds: _secondsController.text,
+      selectedColor: _selectedColor,
+    );
+
+    if (form.title.isEmpty || !_TaskFormController.isValidDuration(
+      hours: _hoursController.text,
+      minutes: _minutesController.text,
+      seconds: _secondsController.text,
+    )) {
+      return;
+    }
 
     await Supabase.instance.client.from('ice_tasks').update({
-      'task_name': title,
-      'category': categoryKey,
-      'melt_minutes': seconds,
-      'detail': detail,
+      'task_name': form.title,
+      'category': form.categoryKey,
+      'melt_minutes': form.seconds,
+      'detail': form.detail,
       'started_at': null,
     }).eq('id', widget.task.id as String);
 
     if (!mounted) return;
-    final updated = Task(title, categoryKey, seconds, id: widget.task.id, detail: detail, ghost: widget.task.ghost);
-    widget.categoryColors[categoryKey] = _selectedColor;
+    final updated = Task(form.title, form.categoryKey, form.seconds, id: widget.task.id, detail: form.detail, ghost: widget.task.ghost);
+    widget.categoryColors[form.categoryKey] = _selectedColor;
     widget.onUpdated(updated);
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(

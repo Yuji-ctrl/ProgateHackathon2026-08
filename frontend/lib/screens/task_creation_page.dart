@@ -3,6 +3,67 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/task.dart';
 
+class _TaskFormValue {
+  const _TaskFormValue({
+    required this.title,
+    required this.detail,
+    required this.seconds,
+    required this.categoryKey,
+  });
+
+  final String title;
+  final String detail;
+  final int seconds;
+  final String categoryKey;
+}
+
+class _TaskFormController {
+  const _TaskFormController();
+
+  static String colorKey(Color color) => 'color_${color.toARGB32().toRadixString(16)}';
+
+  static int parseSeconds({
+    required String hours,
+    required String minutes,
+    required String seconds,
+  }) {
+    final hoursValue = int.tryParse(hours.trim()) ?? 0;
+    final minutesValue = int.tryParse(minutes.trim()) ?? 0;
+    final secondsValue = int.tryParse(seconds.trim()) ?? 0;
+    return hoursValue * 3600 + minutesValue * 60 + secondsValue;
+  }
+
+  static bool isValidDuration({
+    required String hours,
+    required String minutes,
+    required String seconds,
+  }) {
+    final hoursValue = int.tryParse(hours.trim()) ?? 0;
+    final minutesValue = int.tryParse(minutes.trim()) ?? 0;
+    final secondsValue = int.tryParse(seconds.trim()) ?? 0;
+    if (hoursValue < 0 || minutesValue < 0 || secondsValue < 0) return false;
+    if (minutesValue > 59 || secondsValue > 59) return false;
+    return parseSeconds(hours: hours, minutes: minutes, seconds: seconds) > 0;
+  }
+
+  static _TaskFormValue buildValue({
+    required String title,
+    required String detail,
+    required String hours,
+    required String minutes,
+    required String seconds,
+    required Color selectedColor,
+  }) {
+    final validatedSeconds = parseSeconds(hours: hours, minutes: minutes, seconds: seconds);
+    return _TaskFormValue(
+      title: title.trim(),
+      detail: detail.trim(),
+      seconds: validatedSeconds,
+      categoryKey: colorKey(selectedColor),
+    );
+  }
+}
+
 class TaskCreationPage extends StatefulWidget {
   const TaskCreationPage({
     super.key,
@@ -34,8 +95,6 @@ class _TaskCreationPageState extends State<TaskCreationPage> {
     Color(0xff2ec4b6),
     Color(0xff8c4c32),
   ];
-
-  static String _colorKey(Color color) => 'color_${color.toARGB32().toRadixString(16)}';
 
   final _titleController = TextEditingController();
   final _detailController = TextEditingController();
@@ -95,29 +154,36 @@ class _TaskCreationPageState extends State<TaskCreationPage> {
   }
 
   Future<void> _createTask() async {
-    final title = _titleController.text.trim();
-    final hours = int.tryParse(_hoursController.text.trim()) ?? 0;
-    final minutes = int.tryParse(_minutesController.text.trim()) ?? 0;
-    final secondsPart = int.tryParse(_secondsController.text.trim()) ?? 0;
-    if (title.isEmpty || hours < 0 || minutes < 0 || minutes > 59 || secondsPart < 0 || secondsPart > 59) return;
-    final seconds = hours * 3600 + minutes * 60 + secondsPart;
-    if (seconds <= 0) return;
-    final detail = _detailController.text.trim();
-    final categoryKey = _colorKey(_selectedColor);
+    final form = _TaskFormController.buildValue(
+      title: _titleController.text,
+      detail: _detailController.text,
+      hours: _hoursController.text,
+      minutes: _minutesController.text,
+      seconds: _secondsController.text,
+      selectedColor: _selectedColor,
+    );
+
+    if (form.title.isEmpty || !_TaskFormController.isValidDuration(
+      hours: _hoursController.text,
+      minutes: _minutesController.text,
+      seconds: _secondsController.text,
+    )) {
+      return;
+    }
 
     final supabase = Supabase.instance.client;
     final startedAt = DateTime.now();
     final iceTask = await supabase.from('ice_tasks').insert({
-      'task_name': title,
-      'melt_minutes': seconds,
-      'category': categoryKey,
-      'detail': detail,
+      'task_name': form.title,
+      'melt_minutes': form.seconds,
+      'category': form.categoryKey,
+      'detail': form.detail,
       'started_at': startedAt.toUtc().toIso8601String(),
     }).select().single();
 
     if (!mounted) return;
-    final task = Task(title, categoryKey, seconds, id: iceTask['id'] as String, detail: detail, startedAt: startedAt);
-    _categoryColors[categoryKey] = _selectedColor;
+    final task = Task(form.title, form.categoryKey, form.seconds, id: iceTask['id'] as String, detail: form.detail, startedAt: startedAt);
+    _categoryColors[form.categoryKey] = _selectedColor;
     widget.onCategoryColorsChanged(_categoryColors);
     widget.onCreated(task);
     Navigator.pop(context, task);

@@ -64,6 +64,44 @@ class _ShellState extends State<Shell> {
         : null,
   );
 
+  void _applyLoadedTasks(List<Map<String, dynamic>> rows) {
+    setState(() {
+      _active
+        ..clear()
+        ..addAll(
+          rows.where((r) => r['is_completed'] != true).map(_taskFromRow),
+        );
+      _album
+        ..clear()
+        ..addAll(
+          rows.where((r) => r['is_completed'] == true).map(_taskFromRow),
+        );
+      _loading = false;
+    });
+  }
+
+  void _completeTaskLocally(Task task) {
+    setState(() {
+      _active.remove(task);
+      _album.insert(0, task);
+      if (_selectedTask == task) _selectedTask = null;
+    });
+  }
+
+  void _replaceTaskInList(Task original, Task updated) {
+    final index = _active.indexOf(original);
+    if (index == -1) return;
+    setState(() => _active[index] = updated);
+  }
+
+  void _removeTaskFromLists(Task task) {
+    setState(() {
+      _active.remove(task);
+      _album.remove(task);
+      if (_selectedTask == task) _selectedTask = null;
+    });
+  }
+
   Future<void> _loadCategoryColors() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = prefs.getString(_categoryColorsKey);
@@ -93,7 +131,7 @@ class _ShellState extends State<Shell> {
   Future<void> _saveCategoryColors() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(
-      _categoryColors.map((key, value) => MapEntry(key, value.value.toRadixString(16).padLeft(8, '0'))),
+      _categoryColors.map((key, value) => MapEntry(key, value.toARGB32().toRadixString(16).padLeft(8, '0'))),
     );
     await prefs.setString(_categoryColorsKey, encoded);
   }
@@ -104,19 +142,7 @@ class _ShellState extends State<Shell> {
         .select()
         .order('completed_at', ascending: false);
     if (!mounted) return;
-    setState(() {
-      _active
-        ..clear()
-        ..addAll(
-          rows.where((r) => r['is_completed'] != true).map(_taskFromRow),
-        );
-      _album
-        ..clear()
-        ..addAll(
-          rows.where((r) => r['is_completed'] == true).map(_taskFromRow),
-        );
-      _loading = false;
-    });
+    _applyLoadedTasks(rows);
     _checkExpired();
   }
 
@@ -137,25 +163,15 @@ class _ShellState extends State<Shell> {
         .eq('id', task.id as String);
 
     if (!mounted) return;
-    setState(() {
-      _active.remove(task);
-      _album.insert(0, task);
-      if (_selectedTask == task) _selectedTask = null;
-    });
+    _completeTaskLocally(task);
   }
 
   void _updateTask(Task original, Task updated) {
-    final index = _active.indexOf(original);
-    if (index == -1) return;
-    setState(() => _active[index] = updated);
+    _replaceTaskInList(original, updated);
   }
 
   void _deleteTask(Task task) {
-    setState(() {
-      _active.remove(task);
-      _album.remove(task);
-      if (_selectedTask == task) _selectedTask = null;
-    });
+    _removeTaskFromLists(task);
   }
 
   bool _isExpired(Task task) {
@@ -166,17 +182,14 @@ class _ShellState extends State<Shell> {
     );
   }
 
-  void _checkExpired() {
-    if (_forcedTaskId != null || !mounted) return;
-    Task? expired;
+  Task? _findExpiredTask() {
     for (final task in _active) {
-      if (_isExpired(task)) {
-        expired = task;
-        break;
-      }
+      if (_isExpired(task)) return task;
     }
-    if (expired == null) return;
-    final task = expired;
+    return null;
+  }
+
+  void _openExpiredTask(Task task) {
     _forcedTaskId = task.id;
     Navigator.of(context)
         .push(
@@ -193,6 +206,13 @@ class _ShellState extends State<Shell> {
           ),
         )
         .then((_) => _forcedTaskId = null);
+  }
+
+  void _checkExpired() {
+    if (_forcedTaskId != null || !mounted) return;
+    final expired = _findExpiredTask();
+    if (expired == null) return;
+    _openExpiredTask(expired);
   }
 
   @override

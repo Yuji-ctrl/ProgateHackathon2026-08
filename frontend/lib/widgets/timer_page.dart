@@ -182,6 +182,14 @@ class _KakigoriCompleteOverlayState extends State<_KakigoriCompleteOverlay>
   }
 }
 
+enum _TimerPagePhase {
+  idle,
+  running,
+  waitingForShake,
+  completing,
+  finished,
+}
+
 class TimerPage extends StatefulWidget {
   const TimerPage({
     super.key,
@@ -215,6 +223,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   bool _running = false;
   bool _waitingForShake = false;
   bool _isCompleted = false;
+  _TimerPagePhase _phase = _TimerPagePhase.idle;
 
   void _stopAllTimerWork() {
     _timer?.cancel();
@@ -227,6 +236,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     _endsAt = null;
     _running = false;
     _waitingForShake = false;
+    _phase = _TimerPagePhase.finished;
   }
 
   @override
@@ -240,11 +250,15 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       _seconds = remaining > 0 ? remaining : 0;
       if (_seconds > 0) {
         _running = true;
+        _phase = _TimerPagePhase.running;
         _ticker.start();
         _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refreshRemaining());
+      } else {
+        _phase = _TimerPagePhase.finished;
       }
     } else {
       _seconds = widget.task.seconds;
+      _phase = _TimerPagePhase.idle;
     }
   }
 
@@ -252,10 +266,10 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   void dispose() { WidgetsBinding.instance.removeObserver(this); _timer?.cancel(); _ticker.dispose(); _accelerometerSubscription?.cancel(); super.dispose(); }
 
   void _startShakeDetection() {
-    if (_isCompleted) return;
+    if (_isCompleted || _phase == _TimerPagePhase.completing) return;
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = userAccelerometerEventStream().listen((event) {
-      if (_isCompleted) {
+      if (_isCompleted || _phase == _TimerPagePhase.completing) {
         _accelerometerSubscription?.cancel();
         _accelerometerSubscription = null;
         return;
@@ -266,7 +280,10 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       if (previousAcceleration == null) return;
       final shakeStrength = (acceleration - previousAcceleration).abs(); final now = DateTime.now();
       if (!_waitingForShake || shakeStrength < 4 || _lastShakeAt != null && now.difference(_lastShakeAt!) < const Duration(milliseconds: 1200)) return;
-      _lastShakeAt = now; _waitingForShake = false; _accelerometerSubscription?.cancel();
+      _lastShakeAt = now;
+      _waitingForShake = false;
+      _phase = _TimerPagePhase.completing;
+      _accelerometerSubscription?.cancel();
       if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
@@ -280,6 +297,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_phase == _TimerPagePhase.completing || _phase == _TimerPagePhase.finished) return;
     if (state == AppLifecycleState.resumed) {
       if (_running) { _refreshRemaining(); if (!_ticker.isActive) _ticker.start(); }
       if (_waitingForShake) _startShakeDetection();
@@ -289,9 +307,10 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   void _refreshRemaining() {
-    if (!mounted || _endsAt == null || _isCompleted) return;
+    if (!mounted || _endsAt == null || _isCompleted || _phase == _TimerPagePhase.completing) return;
     final remaining = _endsAt!.difference(DateTime.now()).inSeconds;
     if (remaining <= 0) {
+      _phase = _TimerPagePhase.completing;
       _completeTaskWithAnimation();
       return;
     }
@@ -299,9 +318,10 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   void _onTick() {
-    if (!mounted || !_running || _endsAt == null || _isCompleted) return;
+    if (!mounted || !_running || _endsAt == null || _isCompleted || _phase == _TimerPagePhase.completing) return;
     final remaining = _endsAt!.difference(DateTime.now());
     if (remaining <= Duration.zero) {
+      _phase = _TimerPagePhase.completing;
       _completeTaskWithAnimation();
       return;
     }
@@ -314,11 +334,12 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   Future<void> _toggle() async {
-    if (_isCompleted || _running || _seconds <= 0) return;
+    if (_isCompleted || _phase == _TimerPagePhase.completing || _running || _seconds <= 0) return;
     final startedAt = DateTime.now();
     await Supabase.instance.client.from('ice_tasks').update({'started_at': startedAt.toUtc().toIso8601String()}).eq('id', widget.task.id as String);
     widget.onStarted?.call(startedAt);
     _endsAt = startedAt.add(Duration(seconds: _seconds));
+    _phase = _TimerPagePhase.running;
     setState(() => _running = true);
     if (!_ticker.isActive) _ticker.start();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refreshRemaining());
@@ -360,6 +381,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     if (_isCompleted || !mounted) return;
 
     _isCompleted = true;
+    _phase = _TimerPagePhase.completing;
     _stopAllTimerWork();
 
     await _showCompletionOverlay();
@@ -367,11 +389,13 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   Future<void> _prepareToShake() async {
-    if (_isCompleted) return;
+    if (_isCompleted || _phase == _TimerPagePhase.completing) return;
     if (widget.skipShake) {
+      _phase = _TimerPagePhase.completing;
       await _completeTaskWithAnimation();
       return;
     }
+    _phase = _TimerPagePhase.waitingForShake;
     setState(() { _waitingForShake = true; _lastAcceleration = null; _lastShakeAt = null; });
     _startShakeDetection();
     await showDialog<void>(
@@ -385,7 +409,8 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
         ],
       ),
     );
-    if (!mounted || !_waitingForShake || _isCompleted) return;
+    if (!mounted || !_waitingForShake || _isCompleted || _phase == _TimerPagePhase.completing) return;
+    _phase = _TimerPagePhase.idle;
     setState(() => _waitingForShake = false);
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = null;
@@ -393,6 +418,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     if (mounted && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
+    _phase = _TimerPagePhase.completing;
     await _completeTaskWithAnimation();
   }
 

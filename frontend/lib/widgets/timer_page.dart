@@ -10,6 +10,165 @@ import '../models/task.dart';
 import '../utils/time_format.dart';
 import 'ice_painters.dart';
 
+class _KakigoriCompleteOverlay extends StatefulWidget {
+  const _KakigoriCompleteOverlay({super.key, required this.onClose});
+  final VoidCallback onClose;
+
+  @override
+  State<_KakigoriCompleteOverlay> createState() => _KakigoriCompleteOverlayState();
+}
+
+class _KakigoriCompleteOverlayState extends State<_KakigoriCompleteOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1700),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        final iceSway = math.sin(t * math.pi * 2) * 0.12;
+        final sparkleOffsets = [
+          const Offset(0.18, 0.18),
+          const Offset(0.82, 0.2),
+          const Offset(0.28, 0.38),
+          const Offset(0.7, 0.36),
+          const Offset(0.15, 0.7),
+          const Offset(0.85, 0.72),
+          const Offset(0.5, 0.12),
+          const Offset(0.5, 0.82),
+        ];
+
+        return Center(
+          child: Container(
+            width: 320,
+            height: 420,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.95),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: const Color(0xfff9d9c3), width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xffef7d68).withOpacity(0.28),
+                  blurRadius: 24,
+                  spreadRadius: 8,
+                ),
+              ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                ...sparkleOffsets.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final offset = entry.value;
+                  final angle = t * math.pi * 2 + index;
+                  final size = 14 + (math.sin(angle * 2.5) + 1) * 10;
+                  final opacity = 0.3 + (math.sin(angle * 3.2) + 1) * 0.35;
+                  return Positioned(
+                    left: 18 + (320 - 36) * offset.dx,
+                    top: 18 + (420 - 36) * offset.dy,
+                    child: Transform.rotate(
+                      angle: angle,
+                      child: Icon(
+                        Icons.auto_awesome_rounded,
+                        size: size,
+                        color: const Color(0xffffe39a).withOpacity(opacity),
+                      ),
+                    ),
+                  );
+                }),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Transform.rotate(
+                      angle: iceSway,
+                      child: Transform.scale(
+                        scale: 0.92 + math.sin(t * math.pi * 2) * 0.08,
+                        child: Container(
+                          width: 170,
+                          height: 170,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                Colors.white.withOpacity(0.95),
+                                const Color(0xfff8d8a9).withOpacity(0.9),
+                                const Color(0xfff39c9b).withOpacity(0.84),
+                              ],
+                              stops: const [0.0, 0.45, 1.0],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white.withOpacity(0.9),
+                                blurRadius: 18,
+                                spreadRadius: 8,
+                              ),
+                            ],
+                          ),
+                          child: const Center(child: IceSundae(color: Color(0xfff8d59d))),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'かき氷完成！',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.4,
+                        color: const Color(0xff6a4338),
+                        shadows: [
+                          Shadow(color: Colors.white.withOpacity(0.8), blurRadius: 12),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'おめでとう！',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: 180,
+                      child: FilledButton.icon(
+                        onPressed: widget.onClose,
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('閉じる'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xffef7d68),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class TimerPage extends StatefulWidget {
   const TimerPage({super.key, required this.task, required this.onFinished, this.onStarted, this.skipShake = false, this.compact = false, this.showTaskDetails = true, this.largeTimer = false});
   final Task task; final VoidCallback onFinished;
@@ -58,7 +217,12 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       final shakeStrength = (acceleration - previousAcceleration).abs(); final now = DateTime.now();
       if (!_waitingForShake || shakeStrength < 4 || _lastShakeAt != null && now.difference(_lastShakeAt!) < const Duration(milliseconds: 1200)) return;
       _lastShakeAt = now; _waitingForShake = false; _accelerometerSubscription?.cancel();
-      if (mounted) Navigator.of(context, rootNavigator: true).pop(); widget.onFinished();
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) {
+        Future.microtask(() async {
+          await _completeTaskWithAnimation();
+        });
+      }
     }, onError: (_) {}, cancelOnError: false);
   }
 
@@ -96,9 +260,39 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     if (!_ticker.isActive) _ticker.start(); _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refreshRemaining());
   }
 
+  Future<void> _showCompletionOverlay() async {
+    final overlayFuture = showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.18),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+          child: ScaleTransition(
+            scale: CurvedAnimation(parent: animation, curve: Curves.elasticOut, reverseCurve: Curves.easeOutCubic),
+            child: child,
+          ),
+        );
+      },
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return _KakigoriCompleteOverlay(
+          onClose: () => Navigator.of(context, rootNavigator: true).pop(),
+        );
+      },
+    );
+
+    await overlayFuture;
+  }
+
+  Future<void> _completeTaskWithAnimation() async {
+    if (!mounted) return;
+    await _showCompletionOverlay();
+    if (mounted) widget.onFinished();
+  }
+
   Future<void> _prepareToShake() async {
     if (widget.skipShake) {
-      widget.onFinished();
+      await _completeTaskWithAnimation();
       return;
     }
     setState(() { _waitingForShake = true; _lastAcceleration = null; _lastShakeAt = null; });
@@ -119,6 +313,8 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = null;
     _lastAcceleration = null;
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    await _completeTaskWithAnimation();
   }
 
   @override

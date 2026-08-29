@@ -5,34 +5,58 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:frontend/main.dart';
 
 void main() {
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Supabase.initialize(
+      url: 'https://tnsnwhicteyxcsqlhfcw.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuc253aGljdGV5eGNzcWxoZmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NjE2ODcsImV4cCI6MjEwMzIzNzY4N30.8tpIrG_0YXsbJZRQd_7oT4UCC02nrCpqHi5CppMvtZ8',
+    );
+  });
+
   testWidgets('home, timer, and album flow works', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
-    // Verify that our counter starts at 0.
     expect(find.text('こおり日和'), findsOneWidget);
     expect(find.text('朝のストレッチ'), findsOneWidget);
-
-    // Timer buttons live on the home screen.
     expect(find.text('タイマー開始'), findsNothing);
 
-    // Open a task by pressing its timer button frame.
     await tester.tap(find.text('朝のストレッチ'));
     await tester.pumpAndSettle();
     expect(find.text('タイマー開始'), findsOneWidget);
-    expect(find.text('振って完成'), findsOneWidget);
+    expect(find.text('完成'), findsOneWidget);
 
-    // Completion starts with an instruction dialog; shaking completes the habit.
-    await tester.tap(find.text('振って完成').first);
+    await tester.tap(find.text('完成').first);
     await tester.pumpAndSettle();
     expect(find.textContaining('端末を振ってください'), findsOneWidget);
     await tester.tap(find.text('キャンセル'));
     await tester.pumpAndSettle();
-    expect(find.text('振って完成'), findsOneWidget);
+    expect(find.text('完成'), findsOneWidget);
+  });
+
+  testWidgets('completion overlay appears with sparkle animation', (WidgetTester tester) async {
+    await tester.pumpWidget(const MyApp());
+
+    await tester.tap(find.text('朝のストレッチ'));
+    await tester.pumpAndSettle();
+
+    final switchFinder = find.byType(Switch);
+    if (switchFinder.evaluate().isNotEmpty) {
+      await tester.tap(switchFinder.first);
+      await tester.pump();
+    }
+
+    await tester.tap(find.text('完成'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('かき氷完成！'), findsOneWidget);
   });
 }

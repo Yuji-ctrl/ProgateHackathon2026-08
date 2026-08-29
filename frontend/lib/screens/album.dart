@@ -4,7 +4,7 @@ import '../models/task.dart';
 import '../widgets/ice_painters.dart';
 
 class Album extends StatefulWidget {
-  const Album({super.key, required this.tasks, required this.categoryColor});
+  const Album({super.key, required this.tasks, required this.categoryColor, this.onBack});
 
   final List<Task> tasks;
   final Color Function(String category) categoryColor;
@@ -68,28 +68,31 @@ class _AlbumState extends State<Album> {
             surfaceTintColor: Colors.transparent,
             title: Row(
               children: [
-                Container(
-                  width: 38,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: const Color(0xfffff5dc),
-                    border: Border.all(
-                      color: const Color(0xffc46f83),
-                      width: 1.5,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x33c46f83),
-                        offset: Offset(0, 2),
-                        blurRadius: 0,
+                GestureDetector(
+                  onTap: widget.onBack,
+                  child: Container(
+                    width: 38,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xfffff5dc),
+                      border: Border.all(
+                        color: const Color(0xffc46f83),
+                        width: 1.5,
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.home_rounded,
-                    size: 21,
-                    color: Color(0xff5796a0),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33c46f83),
+                          offset: Offset(0, 2),
+                          blurRadius: 0,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.home_rounded,
+                      size: 21,
+                      color: Color(0xff5796a0),
+                    ),
                   ),
                 ),
               ],

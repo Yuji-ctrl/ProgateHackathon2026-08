@@ -217,7 +217,9 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       final shakeStrength = (acceleration - previousAcceleration).abs(); final now = DateTime.now();
       if (!_waitingForShake || shakeStrength < 4 || _lastShakeAt != null && now.difference(_lastShakeAt!) < const Duration(milliseconds: 1200)) return;
       _lastShakeAt = now; _waitingForShake = false; _accelerometerSubscription?.cancel();
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
       if (mounted) {
         Future.microtask(() async {
           await _completeTaskWithAnimation();
@@ -274,9 +276,13 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
           ),
         );
       },
-      pageBuilder: (context, animation, secondaryAnimation) {
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
         return _KakigoriCompleteOverlay(
-          onClose: () => Navigator.of(context, rootNavigator: true).pop(),
+          onClose: () {
+            if (Navigator.of(dialogContext).canPop()) {
+              Navigator.of(dialogContext).pop();
+            }
+          },
         );
       },
     );
@@ -313,7 +319,9 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = null;
     _lastAcceleration = null;
-    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
     await _completeTaskWithAnimation();
   }
 

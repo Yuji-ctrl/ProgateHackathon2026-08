@@ -7,9 +7,18 @@ import '../widgets/timer_page.dart';
 import 'task_detail_page.dart';
 
 class TaskTimerPage extends StatefulWidget {
-  const TaskTimerPage({super.key, required this.task, required this.categories, required this.onUpdated, required this.onFinished, required this.onDeleted});
+  const TaskTimerPage({
+    super.key,
+    required this.task,
+    required this.categories,
+    required this.categoryColors,
+    required this.onUpdated,
+    required this.onFinished,
+    required this.onDeleted,
+  });
   final Task task;
   final List<String> categories;
+  final Map<String, Color> categoryColors;
   final ValueChanged<Task> onUpdated;
   final VoidCallback onFinished;
   final VoidCallback onDeleted;
@@ -40,7 +49,19 @@ class _TaskTimerPageState extends State<TaskTimerPage> {
   }
 
   void _openTaskSettings(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailPage(task: widget.task, categories: widget.categories, onUpdated: widget.onUpdated, onFinished: widget.onFinished, onDeleted: widget.onDeleted)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TaskDetailPage(
+          task: widget.task,
+          categories: widget.categories,
+          categoryColors: widget.categoryColors,
+          onUpdated: widget.onUpdated,
+          onFinished: widget.onFinished,
+          onDeleted: widget.onDeleted,
+        ),
+      ),
+    );
   }
 
   void _handleStarted(DateTime startedAt) {
@@ -53,7 +74,12 @@ class _TaskTimerPageState extends State<TaskTimerPage> {
         body: Column(children: [
           Padding(padding: const EdgeInsets.fromLTRB(24, 20, 24, 8), child: Column(children: [
             Text(widget.task.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8), Text('${widget.task.category} ・ ${formatDuration(widget.task.seconds)}', style: const TextStyle(color: Color(0xff89534a), fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 12, height: 12, decoration: BoxDecoration(color: widget.categoryColors[widget.task.category] ?? Color(int.tryParse(RegExp(r'^color_([0-9a-fA-F]+)$').firstMatch(widget.task.category)?.group(1) ?? '', radix: 16) ?? 0xFFF25050), shape: BoxShape.circle)),
+              const SizedBox(width: 8),
+              Text(formatDuration(widget.task.seconds), style: const TextStyle(color: Color(0xff89534a), fontWeight: FontWeight.w700)),
+            ]),
             if (widget.task.detail.isNotEmpty) ...[const SizedBox(height: 8), Text(widget.task.detail, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: Colors.grey.shade700))],
           ])),
           Align(

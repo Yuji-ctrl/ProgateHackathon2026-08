@@ -266,5 +266,18 @@ class _ShellState extends State<Shell> {
       }[category] ??
       const Color(0xffef7d68);
 
-  Color _categoryColor(String category) => _categoryColors[category] ?? _defaultCategoryColor(category);
+  // Task colors are stored as a "color_<hex>" category key, so the exact
+  // color is always recoverable straight from that string — this is used as
+  // a fallback for when _categoryColors (the SharedPreferences-backed
+  // reverse-lookup cache) hasn't loaded yet, e.g. right after a fresh
+  // install, so the corkboard/album don't briefly show the wrong color.
+  Color? _colorFromCategoryKey(String category) {
+    final match = RegExp(r'^color_([0-9a-fA-F]+)$').firstMatch(category);
+    if (match == null) return null;
+    final value = int.tryParse(match.group(1)!, radix: 16);
+    return value == null ? null : Color(value);
+  }
+
+  Color _categoryColor(String category) =>
+      _categoryColors[category] ?? _colorFromCategoryKey(category) ?? _defaultCategoryColor(category);
 }

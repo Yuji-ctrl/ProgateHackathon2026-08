@@ -226,7 +226,9 @@ class _HomeScreenState extends State<HomeScreen> {
         (boardWidth - spacing * (crossAxisCount + 1)) / crossAxisCount;
     final double maxItemHeight =
         (boardHeight - spacing * (rowCount + 1)) / rowCount;
-    final double itemSize = maxItemWidth < maxItemHeight ? maxItemWidth : maxItemHeight;
+    final double itemSize = maxItemWidth < maxItemHeight
+        ? maxItemWidth
+        : maxItemHeight;
 
     // アスペクト比は常に1.0（正方形）
     const double childAspectRatio = 1.0;
@@ -236,8 +238,14 @@ class _HomeScreenState extends State<HomeScreen> {
       height: boardHeight,
       child: GridView.builder(
         padding: EdgeInsets.symmetric(
-          horizontal: (boardWidth - itemSize * crossAxisCount - spacing * (crossAxisCount - 1)) / 2,
-          vertical: (boardHeight - itemSize * rowCount - spacing * (rowCount - 1)) / 2,
+          horizontal:
+              (boardWidth -
+                  itemSize * crossAxisCount -
+                  spacing * (crossAxisCount - 1)) /
+              2,
+          vertical:
+              (boardHeight - itemSize * rowCount - spacing * (rowCount - 1)) /
+              2,
         ),
         physics: allowScroll
             ? const AlwaysScrollableScrollPhysics()
@@ -274,12 +282,12 @@ class _HomeScreenState extends State<HomeScreen> {
       final int rows = (taskCount + cols - 1) ~/ cols;
 
       // この列数でのアイテムサイズを計算
-      final double maxItemWidth =
-          (boardWidth - spacing * (cols + 1)) / cols;
-      final double maxItemHeight =
-          (boardHeight - spacing * (rows + 1)) / rows;
+      final double maxItemWidth = (boardWidth - spacing * (cols + 1)) / cols;
+      final double maxItemHeight = (boardHeight - spacing * (rows + 1)) / rows;
 
-      final double itemSize = maxItemWidth < maxItemHeight ? maxItemWidth : maxItemHeight;
+      final double itemSize = maxItemWidth < maxItemHeight
+          ? maxItemWidth
+          : maxItemHeight;
 
       // 使用される総サイズを計算
       final double usedWidth = itemSize * cols + spacing * (cols - 1);

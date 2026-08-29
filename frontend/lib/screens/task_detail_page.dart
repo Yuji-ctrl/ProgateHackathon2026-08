@@ -5,46 +5,138 @@ import '../models/task.dart';
 import 'task_timer_page.dart';
 
 class TaskDetailPage extends StatefulWidget {
-  const TaskDetailPage({super.key, required this.task, required this.categories, required this.onUpdated, required this.onFinished, required this.onDeleted, this.forced = false});
+  const TaskDetailPage({
+    super.key,
+    required this.task,
+    required this.categories,
+    required this.categoryColors,
+    required this.onUpdated,
+    required this.onFinished,
+    required this.onDeleted,
+    this.forced = false,
+  });
+
   final Task task;
   final List<String> categories;
+  final Map<String, Color> categoryColors;
   final ValueChanged<Task> onUpdated;
   final VoidCallback onFinished;
   final VoidCallback onDeleted;
   final bool forced;
-  @override State<TaskDetailPage> createState() => _TaskDetailPageState();
+
+  @override
+  State<TaskDetailPage> createState() => _TaskDetailPageState();
 }
 
 class _TaskDetailPageState extends State<TaskDetailPage> {
+  static const List<Color> _palette = [
+    Color(0xfff25050),
+    Color(0xfff2993d),
+    Color(0xfff4df45),
+    Color(0xff9bd75d),
+    Color(0xff3fa9f5),
+    Color(0xff9b5de5),
+    Color(0xff2ec4b6),
+    Color(0xff8c4c32),
+  ];
+
+  static String _colorKey(Color color) => 'color_${color.toARGB32().toRadixString(16)}';
+
   late final TextEditingController _titleController = TextEditingController(text: widget.task.title);
   late final TextEditingController _detailController = TextEditingController(text: widget.task.detail);
   late final TextEditingController _hoursController = TextEditingController(text: '${widget.task.seconds ~/ 3600}');
   late final TextEditingController _minutesController = TextEditingController(text: '${(widget.task.seconds % 3600) ~/ 60}');
   late final TextEditingController _secondsController = TextEditingController(text: '${widget.task.seconds % 60}');
-  late String _category = widget.task.category;
+  late Color _selectedColor = widget.categoryColors[widget.task.category] ?? _taskColorFromCategory(widget.task.category);
+
+  static Color _taskColorFromCategory(String category) {
+    final match = RegExp(r'^color_([0-9a-fA-F]+)$').firstMatch(category);
+    if (match != null) {
+      final value = int.tryParse(match.group(1)!, radix: 16);
+      if (value != null) return Color(value);
+    }
+    return const Color(0xfff25050);
+  }
 
   @override
   void dispose() { _titleController.dispose(); _detailController.dispose(); _hoursController.dispose(); _minutesController.dispose(); _secondsController.dispose(); super.dispose(); }
+
+  Future<void> _pickCategoryColor() async {
+    final picked = await showDialog<Color>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('色を選ぶ'),
+        content: SizedBox(
+          width: 300,
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: _palette.map((color) {
+              final selected = color.toARGB32() == _selectedColor.toARGB32();
+              return GestureDetector(
+                onTap: () => Navigator.pop(context, color),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: selected ? const Color(0xff263238) : Colors.transparent,
+                      width: selected ? 3 : 0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withAlpha(120),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _selectedColor = picked;
+    });
+  }
 
   Future<void> _save() async {
     final hours = int.tryParse(_hoursController.text.trim()) ?? 0; final minutes = int.tryParse(_minutesController.text.trim()) ?? 0; final secondsPart = int.tryParse(_secondsController.text.trim()) ?? 0; final seconds = hours * 3600 + minutes * 60 + secondsPart;
     if (_titleController.text.trim().isEmpty || hours < 0 || minutes < 0 || minutes > 59 || secondsPart < 0 || secondsPart > 59 || seconds <= 0) return;
     final title = _titleController.text.trim();
     final detail = _detailController.text.trim();
+    final categoryKey = _colorKey(_selectedColor);
 
     await Supabase.instance.client.from('ice_tasks').update({
       'task_name': title,
-      'category': _category,
+      'category': categoryKey,
       'melt_minutes': seconds,
       'detail': detail,
       'started_at': null,
     }).eq('id', widget.task.id as String);
 
     if (!mounted) return;
-    final updated = Task(title, _category, seconds, id: widget.task.id, detail: detail, ghost: widget.task.ghost);
+    final updated = Task(title, categoryKey, seconds, id: widget.task.id, detail: detail, ghost: widget.task.ghost);
+    widget.categoryColors[categoryKey] = _selectedColor;
     widget.onUpdated(updated);
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => TaskTimerPage(task: updated, categories: widget.categories, onUpdated: widget.onUpdated, onFinished: widget.onFinished, onDeleted: widget.onDeleted)),
+      MaterialPageRoute(
+        builder: (_) => TaskTimerPage(
+          task: updated,
+          categories: widget.categories,
+          categoryColors: widget.categoryColors,
+          onUpdated: widget.onUpdated,
+          onFinished: widget.onFinished,
+          onDeleted: widget.onDeleted,
+        ),
+      ),
       (route) => route.isFirst,
     );
   }
@@ -85,7 +177,36 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           ),
         TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'タイトル', border: OutlineInputBorder())), const SizedBox(height: 16),
         TextField(controller: _detailController, maxLines: 4, decoration: const InputDecoration(labelText: '詳細', border: OutlineInputBorder())), const SizedBox(height: 16),
-        DropdownButtonFormField<String>(initialValue: _category, decoration: const InputDecoration(labelText: 'ジャンル', border: OutlineInputBorder()), items: widget.categories.map((category) => DropdownMenuItem(value: category, child: Text(category))).toList(), onChanged: (value) => setState(() => _category = value ?? _category)),
+        const Text('色', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: _pickCategoryColor,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: _selectedColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text('かき氷の色を選ぶ', style: TextStyle(fontWeight: FontWeight.w600)),
+                const Spacer(),
+                const Icon(Icons.palette_outlined, size: 18),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 16), const Text('タイマー時間', style: TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 8),
         Row(children: [Expanded(child: TextField(controller: _hoursController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '時間', suffixText: '時間', border: OutlineInputBorder()))), const SizedBox(width: 8), Expanded(child: TextField(controller: _minutesController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '分', suffixText: '分', border: OutlineInputBorder()))), const SizedBox(width: 8), Expanded(child: TextField(controller: _secondsController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '秒', suffixText: '秒', border: OutlineInputBorder())))]),
         const SizedBox(height: 24),

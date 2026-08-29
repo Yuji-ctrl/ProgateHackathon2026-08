@@ -11,9 +11,10 @@ import '../utils/time_format.dart';
 import 'ice_painters.dart';
 
 class TimerPage extends StatefulWidget {
-  const TimerPage({super.key, required this.task, required this.onFinished, this.onStarted, this.compact = false, this.showTaskDetails = true, this.largeTimer = false});
+  const TimerPage({super.key, required this.task, required this.onFinished, this.onStarted, this.skipShake = false, this.compact = false, this.showTaskDetails = true, this.largeTimer = false});
   final Task task; final VoidCallback onFinished;
   final ValueChanged<DateTime>? onStarted;
+  final bool skipShake;
   final bool compact; final bool showTaskDetails; final bool largeTimer;
   @override State<TimerPage> createState() => _TimerPageState();
 }
@@ -96,13 +97,28 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   Future<void> _prepareToShake() async {
-    setState(() { _waitingForShake = true; _lastAcceleration = null; _lastShakeAt = null; }); _startShakeDetection();
-    await showDialog<void>(context: context, barrierDismissible: false, builder: (context) => AlertDialog(
-      title: const Text('かき氷を完成させよう'), content: const Text('端末を振ってください。\n振ると完成画面が表示されます。'),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル'))],
-    ));
+    if (widget.skipShake) {
+      widget.onFinished();
+      return;
+    }
+    setState(() { _waitingForShake = true; _lastAcceleration = null; _lastShakeAt = null; });
+    _startShakeDetection();
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('かき氷を完成させよう'),
+        content: const Text('端末をしっかり振ってください。\n振動を感知すると完成します。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+        ],
+      ),
+    );
     if (!mounted || !_waitingForShake) return;
-    setState(() => _waitingForShake = false); _accelerometerSubscription?.cancel(); _accelerometerSubscription = null; _lastAcceleration = null;
+    setState(() => _waitingForShake = false);
+    _accelerometerSubscription?.cancel();
+    _accelerometerSubscription = null;
+    _lastAcceleration = null;
   }
 
   @override
@@ -122,7 +138,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
         if (widget.largeTimer) const Spacer(), const SizedBox(height: 12),
         if (!widget.largeTimer) LinearProgressIndicator(value: progress, minHeight: 8, borderRadius: BorderRadius.circular(8), color: const Color(0xffef7d68), backgroundColor: Colors.white),
         if (widget.compact) const Spacer(), const SizedBox(height: 12),
-        Row(children: [Expanded(child: OutlinedButton.icon(onPressed: _toggle, icon: Icon(_running ? Icons.timelapse : Icons.play_arrow), label: Text(_running ? '稼働中' : 'タイマー開始'))), const SizedBox(width: 10), Expanded(child: FilledButton.icon(onPressed: _prepareToShake, icon: const Icon(Icons.vibration), label: Text(_waitingForShake ? '振ってください' : '振って完成')))]),
+        Row(children: [Expanded(child: OutlinedButton.icon(onPressed: _toggle, icon: Icon(_running ? Icons.timelapse : Icons.play_arrow), label: Text(_running ? '稼働中' : 'タイマー開始'))), const SizedBox(width: 10), Expanded(child: FilledButton.icon(onPressed: _prepareToShake, icon: const Icon(Icons.check), label: const Text('完成')))]),
       ])),
     );
     if (widget.compact) return content;

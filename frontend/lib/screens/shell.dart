@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/task.dart';
 import 'album.dart';
+import 'home_screen.dart';
 import 'task_creation_page.dart';
 import 'task_detail_page.dart';
 import 'task_timer_page.dart';
@@ -151,112 +152,20 @@ class _ShellState extends State<Shell> {
       child: _loading
           ? const Center(child: CircularProgressIndicator())
           : (_tab == 0
-                ? _home()
-                : Album(tasks: _album, categoryColor: _categoryColor)),
+                ? HomeScreen(
+                    active: _active,
+                    categoryColor: _categoryColor,
+                    onOpenTask: _openTimer,
+                    onNewTask: _newTask,
+                    onOpenAlbum: () => setState(() => _tab = 1),
+                  )
+                : Album(
+                    tasks: _album,
+                    categoryColor: _categoryColor,
+                    onBack: () => setState(() => _tab = 0),
+                  )),
     ),
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: _tab,
-      onDestinationSelected: (index) => setState(() => _tab = index),
-      backgroundColor: Colors.white,
-      indicatorColor: const Color(0xffffe1d4),
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home),
-          label: 'ホーム',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.photo_library_outlined),
-          selectedIcon: Icon(Icons.photo_library),
-          label: 'アルバム',
-        ),
-      ],
-    ),
-    floatingActionButton: _tab == 0
-        ? FloatingActionButton.extended(
-            onPressed: _newTask,
-            backgroundColor: const Color(0xffef7d68),
-            foregroundColor: Colors.white,
-            icon: const Icon(Icons.add),
-            label: const Text('新しい習慣'),
-          )
-        : null,
   );
-
-  Widget _home() => CustomScrollView(
-    slivers: [
-      SliverAppBar(
-        automaticallyImplyLeading: false,
-        pinned: true,
-        backgroundColor: const Color(0xfffffaf4),
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'こおり日和',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
-            ),
-            Text(
-              '今日も、融ける前にひとつ。',
-              style: TextStyle(fontSize: 12, color: Color(0xff8b7770)),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            onPressed: null,
-            icon: const Icon(Icons.tune),
-            tooltip: '設定',
-          ),
-        ],
-      ),
-      if (_active.isEmpty)
-        const SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: Text('予定されている習慣はありません。')),
-        )
-      else
-        SliverList.builder(
-          itemCount: _active.length,
-          itemBuilder: (_, index) => _timerButton(_active[index]),
-        ),
-      const SliverToBoxAdapter(child: SizedBox(height: 100)),
-    ],
-  );
-
-  Widget _timerButton(Task task) {
-    final color = _categoryColor(task.category);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-      child: OutlinedButton(
-        onPressed: () => _openTimer(task),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.all(18),
-          alignment: Alignment.centerLeft,
-          side: BorderSide(color: color, width: 1.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.timer_outlined, color: color),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                task.title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: Color(0xffb5a8a2)),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _openTimer(Task task) {
     setState(() => _selectedTask = task);

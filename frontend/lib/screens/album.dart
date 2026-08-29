@@ -8,6 +8,7 @@ class Album extends StatefulWidget {
 
   final List<Task> tasks;
   final Color Function(String category) categoryColor;
+  final VoidCallback? onBack;
 
   @override
   State<Album> createState() => _AlbumState();

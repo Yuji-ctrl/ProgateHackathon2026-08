@@ -159,7 +159,11 @@ class _ShellState extends State<Shell> {
                     onNewTask: _newTask,
                     onOpenAlbum: () => setState(() => _tab = 1),
                   )
-                : Album(tasks: _album, categoryColor: _categoryColor)),
+                : Album(
+                    tasks: _album,
+                    categoryColor: _categoryColor,
+                    onBack: () => setState(() => _tab = 0),
+                  )),
     ),
   );
 

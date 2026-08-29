@@ -150,12 +150,21 @@ class _AlbumIntro extends StatelessWidget {
             ],
           ),
         ),
-        Text(
-          '$count cup',
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xff9b7062),
-            fontWeight: FontWeight.w700,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0x44fff5dc),
+            border: Border.all(color: const Color(0x66b95770), width: 1),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '$count cup',
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xff9b7062),
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
       ],
@@ -197,15 +206,15 @@ class _AlbumBook extends StatelessWidget {
       children: [
         Container(
           margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-          padding: const EdgeInsets.fromLTRB(30, 16, 10, 10),
+          padding: const EdgeInsets.fromLTRB(28, 14, 8, 12),
           decoration: BoxDecoration(
             color: const Color(0xfff2c1ca),
-            border: Border.all(color: const Color(0xffb95770), width: 2.5),
-            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xffb95770), width: 3),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x3db95770),
-                offset: Offset(0, 7),
+                offset: Offset(0, 8),
                 blurRadius: 0,
               ),
             ],
@@ -249,22 +258,28 @@ class _AlbumBook extends StatelessWidget {
                     children: [
                       IconButton(
                         onPressed: page == 0 ? null : onPrevious,
-                        icon: const Icon(Icons.chevron_left),
+                        icon: const Icon(Icons.chevron_left, size: 26),
                         color: const Color(0xffa84963),
                         tooltip: '前のページ',
+                        splashRadius: 20,
                       ),
-                      Text(
-                        '${page + 1} / $pageCount',
-                        style: const TextStyle(
-                          color: Color(0xffa84963),
-                          fontWeight: FontWeight.w800,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          '${page + 1} / $pageCount',
+                          style: const TextStyle(
+                            color: Color(0xffa84963),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                       IconButton(
                         onPressed: page == pageCount - 1 ? null : onNext,
-                        icon: const Icon(Icons.chevron_right),
+                        icon: const Icon(Icons.chevron_right, size: 26),
                         color: const Color(0xffa84963),
                         tooltip: '次のページ',
+                        splashRadius: 20,
                       ),
                     ],
                   ),
@@ -300,12 +315,13 @@ class _AlbumPage extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
     decoration: BoxDecoration(
       color: const Color(0xfffff5dc),
-      borderRadius: BorderRadius.circular(5),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: const Color(0x7bb95770), width: 1.5),
       boxShadow: const [
         BoxShadow(
           color: Color(0x33b95770),
-          offset: Offset(2, 2),
-          blurRadius: 2,
+          offset: Offset(2, 4),
+          blurRadius: 4,
         ),
       ],
     ),
@@ -313,12 +329,12 @@ class _AlbumPage extends StatelessWidget {
       children: [
         GridView.builder(
           physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(4, 30, 4, 8),
+          padding: const EdgeInsets.fromLTRB(8, 32, 8, 12),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: .78,
+            childAspectRatio: .82,
           ),
           itemCount: tasks.length,
           itemBuilder: (_, index) => _AlbumCard(
@@ -326,18 +342,20 @@ class _AlbumPage extends StatelessWidget {
             color: categoryColor(tasks[index].category),
           ),
         ),
-        const Positioned(
+        Positioned(
           top: 2,
           left: 0,
           right: 0,
-          child: Text(
-            'こおり日和  •  memories',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 10,
-              letterSpacing: 1.2,
-              color: Color(0xffb95770),
-              fontWeight: FontWeight.w700,
+          child: Center(
+            child: Text(
+              'memories',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                letterSpacing: 1.5,
+                color: const Color(0xffb95770),
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ),
@@ -435,6 +453,24 @@ class _EmptyAlbum extends StatelessWidget {
   );
 }
 
+String _formatAlbumDate(DateTime? startedAt) {
+  if (startedAt == null) return '完成';
+  return '${startedAt.month}/${startedAt.day}';
+}
+
+String _formatAlbumDuration(int seconds) {
+  final minutes = seconds ~/ 60;
+  final remainingSeconds = seconds % 60;
+
+  if (minutes == 0) {
+    return '$remainingSeconds秒';
+  }
+  if (remainingSeconds == 0) {
+    return '$minutes分';
+  }
+  return '$minutes分$remainingSeconds秒';
+}
+
 class _AlbumCard extends StatelessWidget {
   const _AlbumCard({required this.task, required this.color});
 
@@ -450,7 +486,7 @@ class _AlbumCard extends StatelessWidget {
       side: const BorderSide(color: Color(0xffe6b9a5)),
     ),
     child: Padding(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -470,17 +506,21 @@ class _AlbumCard extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 6),
           Text(
             task.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           ),
           const SizedBox(height: 4),
           Text(
-            task.ghost ? '亡霊のかき氷' : '完成 ・ ${task.category}',
+            '${_formatAlbumDate(task.startedAt)} ・ ${_formatAlbumDuration(task.seconds)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
               color: task.ghost ? const Color(0xff8e6aae) : color,
             ),
           ),

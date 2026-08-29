@@ -4,18 +4,22 @@ import '../models/task.dart';
 import '../widgets/ice_painters.dart';
 
 class Album extends StatelessWidget {
-  const Album({super.key, required this.tasks, required this.categoryColor});
+  const Album({super.key, required this.tasks, required this.categoryColor, this.onBack});
 
   final List<Task> tasks;
   final Color Function(String category) categoryColor;
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) => CustomScrollView(
     slivers: [
-      const SliverAppBar(
+      SliverAppBar(
         automaticallyImplyLeading: false,
         pinned: true,
-        title: Text('アルバム', style: TextStyle(fontWeight: FontWeight.w800)),
+        leading: onBack == null
+            ? null
+            : IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_back)),
+        title: const Text('アルバム', style: TextStyle(fontWeight: FontWeight.w800)),
       ),
       SliverPadding(
         padding: const EdgeInsets.all(20),

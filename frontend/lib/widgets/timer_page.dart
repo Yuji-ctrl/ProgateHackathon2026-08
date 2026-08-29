@@ -212,7 +212,22 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   late final Ticker _ticker = Ticker((_) => _onTick());
   StreamSubscription<UserAccelerometerEvent>? _accelerometerSubscription;
   DateTime? _endsAt; DateTime? _lastShakeAt; double? _lastAcceleration;
-  bool _running = false; bool _waitingForShake = false;
+  bool _running = false;
+  bool _waitingForShake = false;
+  bool _isCompleted = false;
+
+  void _stopAllTimerWork() {
+    _timer?.cancel();
+    _timer = null;
+    _ticker.stop();
+    _accelerometerSubscription?.cancel();
+    _accelerometerSubscription = null;
+    _lastAcceleration = null;
+    _lastShakeAt = null;
+    _endsAt = null;
+    _running = false;
+    _waitingForShake = false;
+  }
 
   @override
   void initState() {
@@ -237,8 +252,15 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   void dispose() { WidgetsBinding.instance.removeObserver(this); _timer?.cancel(); _ticker.dispose(); _accelerometerSubscription?.cancel(); super.dispose(); }
 
   void _startShakeDetection() {
+    if (_isCompleted) return;
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = userAccelerometerEventStream().listen((event) {
+      if (_isCompleted) {
+        _accelerometerSubscription?.cancel();
+        _accelerometerSubscription = null;
+        return;
+      }
+
       final acceleration = math.sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
       final previousAcceleration = _lastAcceleration; _lastAcceleration = acceleration;
       if (previousAcceleration == null) return;
@@ -267,27 +289,39 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   void _refreshRemaining() {
-    if (!mounted || _endsAt == null) return;
+    if (!mounted || _endsAt == null || _isCompleted) return;
     final remaining = _endsAt!.difference(DateTime.now()).inSeconds;
-    if (remaining <= 0) { _timer?.cancel(); _ticker.stop(); setState(() { _seconds = 0; _running = false; }); }
-    else setState(() => _seconds = remaining);
+    if (remaining <= 0) {
+      _completeTaskWithAnimation();
+      return;
+    }
+    setState(() => _seconds = remaining);
   }
 
   void _onTick() {
-    if (!mounted || !_running || _endsAt == null) return;
+    if (!mounted || !_running || _endsAt == null || _isCompleted) return;
     final remaining = _endsAt!.difference(DateTime.now());
-    if (remaining <= Duration.zero) { _timer?.cancel(); _ticker.stop(); setState(() { _seconds = 0; _running = false; }); return; }
+    if (remaining <= Duration.zero) {
+      _completeTaskWithAnimation();
+      return;
+    }
     final seconds = remaining.inSeconds;
-    if (seconds != _seconds) setState(() => _seconds = seconds); else setState(() {});
+    if (seconds != _seconds) {
+      setState(() => _seconds = seconds);
+    } else {
+      setState(() {});
+    }
   }
 
   Future<void> _toggle() async {
-    if (_running || _seconds <= 0) return;
+    if (_isCompleted || _running || _seconds <= 0) return;
     final startedAt = DateTime.now();
     await Supabase.instance.client.from('ice_tasks').update({'started_at': startedAt.toUtc().toIso8601String()}).eq('id', widget.task.id as String);
     widget.onStarted?.call(startedAt);
-    _endsAt = startedAt.add(Duration(seconds: _seconds)); setState(() => _running = true);
-    if (!_ticker.isActive) _ticker.start(); _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refreshRemaining());
+    _endsAt = startedAt.add(Duration(seconds: _seconds));
+    setState(() => _running = true);
+    if (!_ticker.isActive) _ticker.start();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refreshRemaining());
   }
 
   Future<void> _showCompletionOverlay() async {
@@ -323,12 +357,17 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   Future<void> _completeTaskWithAnimation() async {
-    if (!mounted) return;
+    if (_isCompleted || !mounted) return;
+
+    _isCompleted = true;
+    _stopAllTimerWork();
+
     await _showCompletionOverlay();
     if (mounted) widget.onFinished();
   }
 
   Future<void> _prepareToShake() async {
+    if (_isCompleted) return;
     if (widget.skipShake) {
       await _completeTaskWithAnimation();
       return;
@@ -346,7 +385,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
         ],
       ),
     );
-    if (!mounted || !_waitingForShake) return;
+    if (!mounted || !_waitingForShake || _isCompleted) return;
     setState(() => _waitingForShake = false);
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = null;

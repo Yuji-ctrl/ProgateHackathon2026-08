@@ -10,8 +10,24 @@ import '../models/task.dart';
 import '../utils/time_format.dart';
 import 'ice_painters.dart';
 
+String _kakigoriAssetForColor(Color color) {
+  final hex = color.toARGB32();
+  final map = <int, String>{
+    const Color(0xfff25050).toARGB32(): 'assets/images/red.png',
+    const Color(0xfff2993d).toARGB32(): 'assets/images/orange.png',
+    const Color(0xfff4df45).toARGB32(): 'assets/images/yellow.png',
+    const Color(0xff9bd75d).toARGB32(): 'assets/images/yellowgreen.png',
+    const Color(0xff3fa9f5).toARGB32(): 'assets/images/blue.png',
+    const Color(0xff9b5de5).toARGB32(): 'assets/images/purple.png',
+    const Color(0xff2ec4b6).toARGB32(): 'assets/images/green.png',
+    const Color(0xff8c4c32).toARGB32(): 'assets/images/brown.png',
+  };
+  return map[hex] ?? 'assets/images/red.png';
+}
+
 class _KakigoriCompleteOverlay extends StatefulWidget {
-  const _KakigoriCompleteOverlay({super.key, required this.onClose});
+  const _KakigoriCompleteOverlay({super.key, required this.color, required this.onClose});
+  final Color color;
   final VoidCallback onClose;
 
   @override
@@ -96,18 +112,10 @@ class _KakigoriCompleteOverlayState extends State<_KakigoriCompleteOverlay>
                       child: Transform.scale(
                         scale: 0.92 + math.sin(t * math.pi * 2) * 0.08,
                         child: Container(
-                          width: 170,
-                          height: 170,
+                          width: 190,
+                          height: 190,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: [
-                                Colors.white.withOpacity(0.95),
-                                const Color(0xfff8d8a9).withOpacity(0.9),
-                                const Color(0xfff39c9b).withOpacity(0.84),
-                              ],
-                              stops: const [0.0, 0.45, 1.0],
-                            ),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.white.withOpacity(0.9),
@@ -116,7 +124,12 @@ class _KakigoriCompleteOverlayState extends State<_KakigoriCompleteOverlay>
                               ),
                             ],
                           ),
-                          child: const Center(child: IceSundae(color: Color(0xfff8d59d))),
+                          child: ClipOval(
+                            child: Image.asset(
+                              _kakigoriAssetForColor(widget.color),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -170,12 +183,27 @@ class _KakigoriCompleteOverlayState extends State<_KakigoriCompleteOverlay>
 }
 
 class TimerPage extends StatefulWidget {
-  const TimerPage({super.key, required this.task, required this.onFinished, this.onStarted, this.skipShake = false, this.compact = false, this.showTaskDetails = true, this.largeTimer = false});
-  final Task task; final VoidCallback onFinished;
+  const TimerPage({
+    super.key,
+    required this.task,
+    required this.onFinished,
+    this.categoryColors = const {},
+    this.onStarted,
+    this.skipShake = false,
+    this.compact = false,
+    this.showTaskDetails = true,
+    this.largeTimer = false,
+  });
+  final Task task;
+  final VoidCallback onFinished;
+  final Map<String, Color> categoryColors;
   final ValueChanged<DateTime>? onStarted;
   final bool skipShake;
-  final bool compact; final bool showTaskDetails; final bool largeTimer;
-  @override State<TimerPage> createState() => _TimerPageState();
+  final bool compact;
+  final bool showTaskDetails;
+  final bool largeTimer;
+  @override
+  State<TimerPage> createState() => _TimerPageState();
 }
 
 class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
@@ -277,7 +305,11 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
         );
       },
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final selectedColor = widget.task.category.startsWith('color_')
+            ? Color(int.tryParse(RegExp(r'^color_([0-9a-fA-F]+)$').firstMatch(widget.task.category)?.group(1) ?? '', radix: 16) ?? 0xFFF25050)
+            : (widget.categoryColors[widget.task.category] ?? const Color(0xfff25050));
         return _KakigoriCompleteOverlay(
+          color: selectedColor,
           onClose: () {
             if (Navigator.of(dialogContext).canPop()) {
               Navigator.of(dialogContext).pop();

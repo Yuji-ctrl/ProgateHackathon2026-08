@@ -106,9 +106,14 @@ class _TaskTimerPageState extends State<TaskTimerPage> {
             ),
           ),
           Expanded(child: Align(alignment: Alignment.bottomCenter, child: TimerPage(
-            task: widget.task, compact: true, showTaskDetails: false, largeTimer: true,
+            task: widget.task,
+            compact: true,
+            showTaskDetails: false,
+            largeTimer: true,
+            categoryColors: widget.categoryColors,
             skipShake: _skipShake,
-            onFinished: widget.onFinished, onStarted: _handleStarted,
+            onFinished: widget.onFinished,
+            onStarted: _handleStarted,
           ))),
         ]),
       );

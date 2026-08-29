@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../models/task.dart';
-import '../widgets/ice_painters.dart';
 
 class Album extends StatefulWidget {
   const Album({super.key, required this.tasks, required this.categoryColor, this.onBack});
@@ -477,6 +476,21 @@ class _AlbumCard extends StatelessWidget {
   final Task task;
   final Color color;
 
+  String _assetPathForColor(Color color) {
+    final hex = color.toARGB32();
+    final map = <int, String>{
+      const Color(0xfff25050).toARGB32(): 'assets/images/red.png',
+      const Color(0xfff2993d).toARGB32(): 'assets/images/orange.png',
+      const Color(0xfff4df45).toARGB32(): 'assets/images/yellow.png',
+      const Color(0xff9bd75d).toARGB32(): 'assets/images/yellowgreen.png',
+      const Color(0xff3fa9f5).toARGB32(): 'assets/images/blue.png',
+      const Color(0xff9b5de5).toARGB32(): 'assets/images/purple.png',
+      const Color(0xff2ec4b6).toARGB32(): 'assets/images/green.png',
+      const Color(0xff8c4c32).toARGB32(): 'assets/images/brown.png',
+    };
+    return map[hex] ?? 'assets/images/red.png';
+  }
+
   @override
   Widget build(BuildContext context) => Card(
     elevation: 0,
@@ -495,7 +509,15 @@ class _AlbumCard extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  IceSundae(color: color, small: true),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      _assetPathForColor(color),
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
+                  ),
                   if (task.ghost)
                     const Positioned(
                       right: 0,

@@ -30,10 +30,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // Tap region for the whole bookshelf (pen cup, plant, all the books) —
   // tapping anywhere here opens the album, even though only the red book
   // visibly reacts.
-  static const double _shelfLeft = 0.735;
-  static const double _shelfTop = 0.505;
-  static const double _shelfW = 0.265;
-  static const double _shelfH = 0.21;
+  static const double _shelfLeft = 0.70;
+  static const double _shelfTop = 0.52;
+  static const double _shelfW = 0.26;
+  static const double _shelfH = 0.20;
 
   // The animated red "album" book sprite (book1.png / book2.png) — drawn
   // at its native crop size (scale 1.0 = no scaling), positioned right next
@@ -42,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const double _bookScale = 1.0;
   static const double _bookW = _bookNativeW;
   static const double _bookH = _bookNativeH;
-  static const double _pinkBookLeft = 0.742;
+  static const double _pinkBookLeft = 0.702;
   static const double _pinkBookBottom = 0.711;
   static const double _bookOverlap = 0.02; // slight touch into the pink book
   static const double _bookLeft = _pinkBookLeft - _bookW + _bookOverlap;
@@ -127,8 +127,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               Positioned(
-                left: _designWidth * 0.13, top: _designHeight * 0.16,
-                width: _designWidth * 0.75, height: _designHeight * 0.32,
+                left: _designWidth * 0.09, top: _designHeight * 0.13,
+                width: _designWidth * 0.80, height: _designHeight * 0.30,
                 child: _taskBoard(),
               ),
               Positioned(

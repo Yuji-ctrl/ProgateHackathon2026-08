@@ -99,7 +99,10 @@ class _ShellState extends State<Shell> {
   }
 
   Future<void> _loadTasks() async {
-    final rows = await Supabase.instance.client.from('ice_tasks').select();
+    final rows = await Supabase.instance.client
+        .from('ice_tasks')
+        .select()
+        .order('completed_at', ascending: false);
     if (!mounted) return;
     setState(() {
       _active

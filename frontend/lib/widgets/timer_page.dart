@@ -464,7 +464,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
 
     if (!mounted) return;
     setState(() {});
-    _shakeHintTimer = Timer(const Duration(milliseconds: 550), () {
+    _shakeHintTimer = Timer(const Duration(seconds: 5), () {
       if (!mounted) return;
       setState(() => _showShakeHint = false);
     });

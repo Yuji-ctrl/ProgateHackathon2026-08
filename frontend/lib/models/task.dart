@@ -9,6 +9,8 @@ class Task {
   final bool ghost;
   final DateTime? startedAt;
 
+  Task asGhost() => Task(title, category, seconds, id: id, detail: detail, ghost: true, startedAt: startedAt);
+
   // Editing a task (e.g. starting the timer, saving changes) replaces it
   // with a new Task instance sharing the same id. Without this, list
   // lookups like _active.remove(task) fall back to reference equality and

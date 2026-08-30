@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/task.dart';
@@ -10,18 +12,20 @@ class HomeScreen extends StatefulWidget {
     required this.onOpenTask,
     required this.onNewTask,
     required this.onOpenAlbum,
+    this.ghostCount = 0,
   });
   final List<Task> active;
   final Color Function(String category) categoryColor;
   final ValueChanged<Task> onOpenTask;
   final VoidCallback onNewTask;
   final VoidCallback onOpenAlbum;
+  final int ghostCount;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   // "Design canvas" size — matches the source art board. Change these two
   // numbers when swapping in new artwork with a different resolution.
   static const double _designWidth = 768;
@@ -60,6 +64,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _bookOpening = false;
   bool _paperPressed = false;
+
+  // 亡霊が漂う動き用。1本のコントローラーの値(0〜1)をsin/cosに通して
+  // 亡霊ごとに位相をずらすことで、少ないアニメーションで複数体をふわふわさせる。
+  late final AnimationController _ghostController = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 6),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _ghostController.dispose();
+    super.dispose();
+  }
 
   Future<void> _handleBookTap() async {
     setState(() => _bookOpening = true);
@@ -171,12 +188,43 @@ class _HomeScreenState extends State<HomeScreen> {
                       behavior: HitTestBehavior.translucent,
                     ),
                   ),
+                  if (widget.ghostCount > 0)
+                    IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _ghostController,
+                        builder: (context, child) => Stack(
+                          children: [
+                            for (var i = 0; i < widget.ghostCount; i++)
+                              _wanderingGhost(i, _ghostController.value),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
         );
       },
+    );
+  }
+
+  // i番目の亡霊の位置をtの周期でふわふわ動かす。indexごとに位相と基準位置を
+  // ずらして、複数体が重ならず散らばって見えるようにしている。
+  Widget _wanderingGhost(int index, double t) {
+    const double size = 90;
+    final double phase = index * 1.7;
+    final double baseLeft = 0.15 + 0.7 * ((index % 3) / 2);
+    final double baseTop = 0.22 + 0.5 * ((index ~/ 3 % 3) / 2);
+    final double dx = math.sin(t * math.pi * 2 + phase) * 0.06;
+    final double dy = math.cos(t * math.pi * 2 + phase * 1.3) * 0.04;
+
+    return Positioned(
+      left: _designWidth * (baseLeft + dx) - size / 2,
+      top: _designHeight * (baseTop + dy) - size / 2,
+      width: size,
+      height: size,
+      child: Image.asset('assets/images/ghost2.png', fit: BoxFit.contain),
     );
   }
 

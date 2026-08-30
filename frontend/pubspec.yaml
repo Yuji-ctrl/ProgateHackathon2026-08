@@ -67,6 +67,9 @@ flutter:
     - assets/images/book1.png
     - assets/images/book2.png
     - assets/images/paper.png
+    - assets/images/ghost.png
+    - assets/images/ghost2.png
+    - assets/images/ghost3.png
     - assets/images/red.png
     - assets/images/orange.png
     - assets/images/yellow.png

@@ -61,6 +61,7 @@ class _ShellState extends State<Shell> {
     id: row['id'] as String,
     detail: row['detail'] as String? ?? '',
     ghost: row['is_ghost'] as bool? ?? false,
+    eaten: row['is_eaten'] as bool? ?? false,
     startedAt: row['started_at'] != null
         ? DateTime.parse(row['started_at'] as String)
         : null,
@@ -70,6 +71,15 @@ class _ShellState extends State<Shell> {
 
   int get _ghostCount =>
       _active.where((task) => task.ghost).length + _album.where((task) => task.ghost).length;
+
+  // 亡霊がホーム画面に一時的にうようよする期間。イベントが起きるたびに延長される。
+  DateTime? _ghostsVisibleUntil;
+
+  int get _roamingGhostCount {
+    final until = _ghostsVisibleUntil;
+    if (until == null || DateTime.now().isAfter(until)) return 0;
+    return _ghostCount;
+  }
 
   void _applyLoadedTasks(List<Map<String, dynamic>> rows) {
     setState(() {
@@ -246,6 +256,12 @@ class _ShellState extends State<Shell> {
     }
     _replaceTaskInList(task, ghosted);
 
+    // ホーム画面に亡霊が漂う期間を延長する(20秒)。時間が来たら自動的に消えるよう再描画を予約する。
+    _ghostsVisibleUntil = DateTime.now().add(const Duration(seconds: 20));
+    Future.delayed(const Duration(seconds: 20), () {
+      if (mounted) setState(() {});
+    });
+
     final eaten = await _eatAlbum();
 
     if (mounted) {
@@ -254,10 +270,18 @@ class _ShellState extends State<Shell> {
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           title: const Text('かき氷が亡霊になった…'),
-          content: Text(
-            eaten.isEmpty
-                ? 'タスクを完了できず、かき氷は亡霊になった！'
-                : 'タスクを完了できず、かき氷は亡霊になった！\nそして亡霊がアルバムのかき氷を${eaten.length}個食べてしまった…',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Image.asset('assets/images/ghost3.png', width: 96, height: 96)),
+              const SizedBox(height: 12),
+              const Text('タスクを完了できず、かき氷は亡霊になった！'),
+              if (eaten.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('そして亡霊がアルバムの「${eaten.map((task) => task.title).join('」「')}」を食べてしまった…'),
+              ],
+            ],
           ),
           actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('わかった'))],
         ),
@@ -266,28 +290,34 @@ class _ShellState extends State<Shell> {
     return ghosted;
   }
 
-  // アルバムから1件ランダムに削除する。低確率(10%)で全部食べてしまう。
+  // アルバムから1〜5個ランダムに食べる(is_eatenを立てるだけで、アルバムからは消さない)。低確率(5%)で残り全部食べてしまう。
   Future<List<Task>> _eatAlbum() async {
-    if (_album.isEmpty) return const [];
-    final eatAll = _random.nextDouble() < 0.1;
-    final eaten = eatAll ? List<Task>.from(_album) : [_album[_random.nextInt(_album.length)]];
+    final candidates = _album.where((task) => !task.eaten).toList()..shuffle(_random);
+    if (candidates.isEmpty) return const [];
+    final eatAll = _random.nextDouble() < 0.05;
+    final eatCount = eatAll ? candidates.length : math.min(1 + _random.nextInt(5), candidates.length);
+    final targets = candidates.take(eatCount).toList();
 
     final supabase = Supabase.instance.client;
-    for (final task in eaten) {
+    final eatenTasks = <Task>[];
+    for (final task in targets) {
+      final eaten = task.asEaten();
       try {
-        await supabase.from('ice_tasks').delete().eq('id', task.id as String);
+        await supabase.from('ice_tasks').update({'is_eaten': true}).eq('id', task.id as String);
       } catch (_) {
-        // DB削除に失敗しても、見た目上はアルバムから消しておく。
+        // DB更新に失敗しても、見た目上は食べられた状態にしておく。
       }
+      eatenTasks.add(eaten);
     }
     if (mounted) {
       setState(() {
-        for (final task in eaten) {
-          _album.remove(task);
+        for (final eaten in eatenTasks) {
+          final index = _album.indexOf(eaten);
+          if (index != -1) _album[index] = eaten;
         }
       });
     }
-    return eaten;
+    return eatenTasks;
   }
 
   @override
@@ -299,7 +329,7 @@ class _ShellState extends State<Shell> {
                 ? HomeScreen(
                     active: _active,
                     categoryColor: _categoryColor,
-                    ghostCount: _ghostCount,
+                    ghostCount: _roamingGhostCount,
                     onOpenTask: _openTimer,
                     onNewTask: _newTask,
                     onOpenAlbum: () => setState(() => _tab = 1),

@@ -512,7 +512,7 @@ class _AlbumCard extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.asset(
-                      _assetPathForColor(color),
+                      task.eaten ? 'assets/images/ghost3.png' : _assetPathForColor(color),
                       fit: BoxFit.contain,
                       width: double.infinity,
                       height: double.infinity,

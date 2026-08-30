@@ -1,5 +1,5 @@
 class Task {
-  Task(this.title, this.category, this.seconds, {this.id, this.detail = '', this.ghost = false, this.startedAt});
+  Task(this.title, this.category, this.seconds, {this.id, this.detail = '', this.ghost = false, this.eaten = false, this.startedAt});
 
   final String? id;
   final String title;
@@ -7,9 +7,11 @@ class Task {
   final int seconds;
   final String detail;
   final bool ghost;
+  final bool eaten;
   final DateTime? startedAt;
 
-  Task asGhost() => Task(title, category, seconds, id: id, detail: detail, ghost: true, startedAt: startedAt);
+  Task asGhost() => Task(title, category, seconds, id: id, detail: detail, ghost: true, eaten: eaten, startedAt: startedAt);
+  Task asEaten() => Task(title, category, seconds, id: id, detail: detail, ghost: ghost, eaten: true, startedAt: startedAt);
 
   // Editing a task (e.g. starting the timer, saving changes) replaces it
   // with a new Task instance sharing the same id. Without this, list

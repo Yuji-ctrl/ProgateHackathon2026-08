@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 import '../models/task.dart';
@@ -17,6 +18,7 @@ class _AlbumState extends State<Album> {
   static const _pageSize = 4;
   late final PageController _pageController;
   int _page = 0;
+  final AudioPlayer _pageTurnPlayer = AudioPlayer();
 
   int get _pageCount => (widget.tasks.length / _pageSize).ceil();
 
@@ -29,7 +31,13 @@ class _AlbumState extends State<Album> {
   @override
   void dispose() {
     _pageController.dispose();
+    _pageTurnPlayer.dispose();
     super.dispose();
+  }
+
+  void _handlePageChanged(int page) {
+    _pageTurnPlayer.play(AssetSource('sounds/page_turn.mp3'));
+    setState(() => _page = page);
   }
 
   void _movePage(int page) {
@@ -111,7 +119,7 @@ class _AlbumState extends State<Album> {
                 pageCount: pages,
                 tasks: widget.tasks,
                 categoryColor: widget.categoryColor,
-                onPageChanged: (page) => setState(() => _page = page),
+                onPageChanged: _handlePageChanged,
                 onPrevious: () => _movePage(_page - 1),
                 onNext: () => _movePage(_page + 1),
               ),

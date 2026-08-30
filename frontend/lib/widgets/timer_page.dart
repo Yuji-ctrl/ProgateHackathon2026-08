@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -235,6 +236,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   bool _showShakeHint = false;
   double _shakeProgress = 0.0;
   _TimerPagePhase _phase = _TimerPagePhase.idle;
+  final AudioPlayer _chimePlayer = AudioPlayer();
 
   void _stopAllTimerWork() {
     _timer?.cancel();
@@ -318,7 +320,11 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   @override
-  void dispose() { WidgetsBinding.instance.removeObserver(this); _timer?.cancel(); _ticker.dispose(); _accelerometerSubscription?.cancel(); super.dispose(); }
+  void dispose() { WidgetsBinding.instance.removeObserver(this); _timer?.cancel(); _ticker.dispose(); _accelerometerSubscription?.cancel(); _chimePlayer.dispose(); super.dispose(); }
+
+  void _playChime() {
+    _chimePlayer.play(AssetSource('sounds/chime.mp3'));
+  }
 
   void _startShakeDetection() {
     if (_isCompleted || _isShakeLocked || _phase == _TimerPagePhase.completing) return;
@@ -371,6 +377,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       // task done without the user ever confirming it.
       _timer?.cancel();
       _ticker.stop();
+      _playChime();
       setState(() { _seconds = 0; _running = false; });
       return;
     }
@@ -383,6 +390,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     if (remaining <= Duration.zero) {
       _timer?.cancel();
       _ticker.stop();
+      _playChime();
       setState(() { _seconds = 0; _running = false; });
       return;
     }

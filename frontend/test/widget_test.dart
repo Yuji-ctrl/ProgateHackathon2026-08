@@ -34,10 +34,10 @@ void main() {
     expect(find.text('完成'), findsOneWidget);
 
     await tester.tap(find.text('完成').first);
-    await tester.pumpAndSettle();
-    expect(find.textContaining('端末を振ってください'), findsOneWidget);
-    await tester.tap(find.text('キャンセル'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(find.text('振ってみよう！'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(find.text('振ってみよう！'), findsNothing);
     expect(find.text('完成'), findsOneWidget);
   });
 

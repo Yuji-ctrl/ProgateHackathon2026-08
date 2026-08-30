@@ -223,6 +223,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   late int _seconds;
   Timer? _timer;
   Timer? _shakeProgressTimer;
+  Timer? _shakeHintTimer;
   late final Ticker _ticker = Ticker((_) => _onTick());
   StreamSubscription<UserAccelerometerEvent>? _accelerometerSubscription;
   DateTime? _endsAt; DateTime? _lastShakeAt; double? _lastAcceleration;
@@ -231,6 +232,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   bool _isCompleted = false;
   bool _isShaking = false;
   bool _isShakeLocked = false;
+  bool _showShakeHint = false;
   double _shakeProgress = 0.0;
   _TimerPagePhase _phase = _TimerPagePhase.idle;
 
@@ -239,6 +241,8 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     _timer = null;
     _shakeProgressTimer?.cancel();
     _shakeProgressTimer = null;
+    _shakeHintTimer?.cancel();
+    _shakeHintTimer = null;
     _ticker.stop();
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = null;
@@ -249,6 +253,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     _waitingForShake = false;
     _isShaking = false;
     _isShakeLocked = true;
+    _showShakeHint = false;
     _phase = _TimerPagePhase.finished;
   }
 
@@ -446,6 +451,8 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       return;
     }
 
+    _shakeHintTimer?.cancel();
+    _showShakeHint = true;
     _isShaking = false;
     _isShakeLocked = false;
     _shakeProgress = 0.0;
@@ -456,31 +463,11 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     _startShakeDetection();
 
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('かき氷を完成させよう'),
-        content: const Text('端末をしっかり振ってください。\n振動を感知すると完成します。'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
-        ],
-      ),
-    );
-
-    if (!mounted || !_waitingForShake || _isCompleted || _isShakeLocked || _phase == _TimerPagePhase.completing) return;
-    _phase = _TimerPagePhase.idle;
-    _waitingForShake = false;
-    _isShaking = false;
-    _pauseShakeProgress();
-    _accelerometerSubscription?.cancel();
-    _accelerometerSubscription = null;
-    _lastAcceleration = null;
-    if (mounted && Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-    _phase = _TimerPagePhase.completing;
-    await _completeTaskWithAnimation();
+    setState(() {});
+    _shakeHintTimer = Timer(const Duration(milliseconds: 550), () {
+      if (!mounted) return;
+      setState(() => _showShakeHint = false);
+    });
   }
 
   @override
@@ -490,10 +477,10 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     final content = Card(
       elevation: 0, color: const Color(0xfffff0e8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-        if (isShakeAnimationVisible) ...[
+        if (isShakeAnimationVisible || _showShakeHint) ...[
           AnimatedOpacity(
-            opacity: isShakeAnimationVisible ? 1 : 0,
-            duration: const Duration(milliseconds: 200),
+            opacity: (isShakeAnimationVisible || _showShakeHint) ? 1 : 0,
+            duration: const Duration(milliseconds: 250),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -501,22 +488,36 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
                 color: Colors.white.withOpacity(0.65),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: 150,
-                    child: Image.asset(
-                      'assets/animations/ice_animation.gif',
-                      fit: BoxFit.contain,
+              child: isShakeAnimationVisible
+                  ? Column(
+                      children: [
+                        SizedBox(
+                          height: 150,
+                          child: Image.asset(
+                            'assets/animations/ice_animation.gif',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${(_shakeProgress * 100).round()}%',
+                          style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xff89534a)),
+                        ),
+                      ],
+                    )
+                  : Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Text(
+                          '振ってみよう！',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xff89534a),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${(_shakeProgress * 100).round()}%',
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xff89534a)),
-                  ),
-                ],
-              ),
             ),
           ),
           const SizedBox(height: 12),

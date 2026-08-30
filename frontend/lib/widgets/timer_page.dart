@@ -217,9 +217,11 @@ class TimerPage extends StatefulWidget {
 }
 
 class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
-  static const double _shakeThreshold = 2.8;
+  static const double _shakeThreshold = 12.0;
   static const double _restingAcceleration = 9.81;
   static const Duration _shakeCompletionDuration = Duration(seconds: 3);
+  static const Duration _shakeCooldownDuration = Duration(milliseconds: 300);
+  static const int _consecutiveShakeRequirement = 2;
 
   late int _seconds;
   Timer? _timer;
@@ -228,6 +230,8 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   late final Ticker _ticker = Ticker((_) => _onTick());
   StreamSubscription<UserAccelerometerEvent>? _accelerometerSubscription;
   DateTime? _endsAt; DateTime? _lastShakeAt; double? _lastAcceleration;
+  DateTime? _shakeCooldownUntil;
+  int _consecutiveShakeDetections = 0;
   bool _running = false;
   bool _waitingForShake = false;
   bool _isCompleted = false;
@@ -250,6 +254,8 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     _accelerometerSubscription = null;
     _lastAcceleration = null;
     _lastShakeAt = null;
+    _shakeCooldownUntil = null;
+    _consecutiveShakeDetections = 0;
     _endsAt = null;
     _running = false;
     _waitingForShake = false;
@@ -290,6 +296,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     _isShaking = false;
     _shakeProgressTimer?.cancel();
     _shakeProgressTimer = null;
+    _consecutiveShakeDetections = 0;
     if (_phase == _TimerPagePhase.shaking) {
       _phase = _TimerPagePhase.waitingForShake;
     }
@@ -328,6 +335,8 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
 
   void _startShakeDetection() {
     if (_isCompleted || _isShakeLocked || _phase == _TimerPagePhase.completing) return;
+    _consecutiveShakeDetections = 0;
+    _shakeCooldownUntil = null;
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = userAccelerometerEventStream().listen((event) {
       if (_isCompleted || _isShakeLocked || _phase == _TimerPagePhase.completing) {
@@ -342,15 +351,31 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       final deviationFromRest = (magnitude - _restingAcceleration).abs();
       final now = DateTime.now();
 
-      if (deviationFromRest < _shakeThreshold) {
+      // クールダウン中は検出をスキップ
+      if (_shakeCooldownUntil != null && now.isBefore(_shakeCooldownUntil!)) {
         if (_isShaking && _lastShakeAt != null && now.difference(_lastShakeAt!) > const Duration(milliseconds: 180)) {
           _pauseShakeProgress();
         }
         return;
       }
 
+      // 振動なし
+      if (deviationFromRest < _shakeThreshold) {
+        _consecutiveShakeDetections = 0;
+        if (_isShaking && _lastShakeAt != null && now.difference(_lastShakeAt!) > const Duration(milliseconds: 180)) {
+          _pauseShakeProgress();
+        }
+        return;
+      }
+
+      // 振動あり：連続検出をカウント
+      _consecutiveShakeDetections++;
       _lastShakeAt = now;
-      if (!_isShaking) {
+
+      // 2回連続検出でシェイク開始
+      if (_consecutiveShakeDetections >= _consecutiveShakeRequirement && !_isShaking) {
+        _consecutiveShakeDetections = 0;
+        _shakeCooldownUntil = now.add(_shakeCooldownDuration);
         _startShakeProgress();
       }
     }, onError: (_) {}, cancelOnError: false);
@@ -474,6 +499,8 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     _waitingForShake = true;
     _lastAcceleration = null;
     _lastShakeAt = null;
+    _shakeCooldownUntil = null;
+    _consecutiveShakeDetections = 0;
     _startShakeDetection();
 
     if (!mounted) return;

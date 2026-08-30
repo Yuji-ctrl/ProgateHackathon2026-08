@@ -38,6 +38,7 @@ dependencies:
   sensors_plus: ^7.1.0
   supabase_flutter: ^2.6.0
   shared_preferences: ^2.5.3
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -84,6 +85,8 @@ flutter:
     - assets/images/blue.png
     - assets/images/purple.png
     - assets/images/brown.png
+    - assets/sounds/chime.mp3
+    - assets/sounds/page_turn.mp3
     - assets/animations/ice_animation.gif
 
   # An image asset can refer to one or more resolution-specific "variants", see

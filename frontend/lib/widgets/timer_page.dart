@@ -186,6 +186,7 @@ enum _TimerPagePhase {
   idle,
   running,
   waitingForShake,
+  shaking,
   completing,
   finished,
 }
@@ -215,19 +216,29 @@ class TimerPage extends StatefulWidget {
 }
 
 class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
+  static const double _shakeThreshold = 2.8;
+  static const double _restingAcceleration = 9.81;
+  static const Duration _shakeCompletionDuration = Duration(seconds: 3);
+
   late int _seconds;
   Timer? _timer;
+  Timer? _shakeProgressTimer;
   late final Ticker _ticker = Ticker((_) => _onTick());
   StreamSubscription<UserAccelerometerEvent>? _accelerometerSubscription;
   DateTime? _endsAt; DateTime? _lastShakeAt; double? _lastAcceleration;
   bool _running = false;
   bool _waitingForShake = false;
   bool _isCompleted = false;
+  bool _isShaking = false;
+  bool _isShakeLocked = false;
+  double _shakeProgress = 0.0;
   _TimerPagePhase _phase = _TimerPagePhase.idle;
 
   void _stopAllTimerWork() {
     _timer?.cancel();
     _timer = null;
+    _shakeProgressTimer?.cancel();
+    _shakeProgressTimer = null;
     _ticker.stop();
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = null;
@@ -236,7 +247,46 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     _endsAt = null;
     _running = false;
     _waitingForShake = false;
+    _isShaking = false;
+    _isShakeLocked = true;
     _phase = _TimerPagePhase.finished;
+  }
+
+  void _startShakeProgress() {
+    if (_isCompleted || _isShakeLocked || !_waitingForShake) return;
+    _isShaking = true;
+    _phase = _TimerPagePhase.shaking;
+    _shakeProgressTimer?.cancel();
+    _shakeProgressTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (!mounted || _isCompleted || _isShakeLocked || !_isShaking) return;
+      final step = 50 / _shakeCompletionDuration.inMilliseconds;
+      final nextProgress = (_shakeProgress + step).clamp(0.0, 1.0);
+      if (nextProgress <= _shakeProgress) return;
+      if (mounted) {
+        setState(() => _shakeProgress = nextProgress);
+      }
+      if (nextProgress >= 1.0) {
+        _isShakeLocked = true;
+        _isShaking = false;
+        _shakeProgressTimer?.cancel();
+        _shakeProgressTimer = null;
+        _phase = _TimerPagePhase.completing;
+        if (mounted) {
+          _completeTaskWithAnimation();
+        }
+      }
+    });
+  }
+
+  void _pauseShakeProgress() {
+    if (!_isShaking) return;
+    _isShaking = false;
+    _shakeProgressTimer?.cancel();
+    _shakeProgressTimer = null;
+    if (_phase == _TimerPagePhase.shaking) {
+      _phase = _TimerPagePhase.waitingForShake;
+    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -266,31 +316,31 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   void dispose() { WidgetsBinding.instance.removeObserver(this); _timer?.cancel(); _ticker.dispose(); _accelerometerSubscription?.cancel(); super.dispose(); }
 
   void _startShakeDetection() {
-    if (_isCompleted || _phase == _TimerPagePhase.completing) return;
+    if (_isCompleted || _isShakeLocked || _phase == _TimerPagePhase.completing) return;
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = userAccelerometerEventStream().listen((event) {
-      if (_isCompleted || _phase == _TimerPagePhase.completing) {
+      if (_isCompleted || _isShakeLocked || _phase == _TimerPagePhase.completing) {
         _accelerometerSubscription?.cancel();
         _accelerometerSubscription = null;
         return;
       }
 
-      final acceleration = math.sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
-      final previousAcceleration = _lastAcceleration; _lastAcceleration = acceleration;
-      if (previousAcceleration == null) return;
-      final shakeStrength = (acceleration - previousAcceleration).abs(); final now = DateTime.now();
-      if (!_waitingForShake || shakeStrength < 4 || _lastShakeAt != null && now.difference(_lastShakeAt!) < const Duration(milliseconds: 1200)) return;
-      _lastShakeAt = now;
-      _waitingForShake = false;
-      _phase = _TimerPagePhase.completing;
-      _accelerometerSubscription?.cancel();
-      if (mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
+      if (!_waitingForShake) return;
+
+      final magnitude = math.sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+      final deviationFromRest = (magnitude - _restingAcceleration).abs();
+      final now = DateTime.now();
+
+      if (deviationFromRest < _shakeThreshold) {
+        if (_isShaking && _lastShakeAt != null && now.difference(_lastShakeAt!) > const Duration(milliseconds: 180)) {
+          _pauseShakeProgress();
+        }
+        return;
       }
-      if (mounted) {
-        Future.microtask(() async {
-          await _completeTaskWithAnimation();
-        });
+
+      _lastShakeAt = now;
+      if (!_isShaking) {
+        _startShakeProgress();
       }
     }, onError: (_) {}, cancelOnError: false);
   }
@@ -389,15 +439,23 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   }
 
   Future<void> _prepareToShake() async {
-    if (_isCompleted || _phase == _TimerPagePhase.completing) return;
+    if (_isCompleted || _isShakeLocked || _phase == _TimerPagePhase.completing) return;
     if (widget.skipShake) {
       _phase = _TimerPagePhase.completing;
       await _completeTaskWithAnimation();
       return;
     }
+
+    _isShaking = false;
+    _isShakeLocked = false;
+    _shakeProgress = 0.0;
     _phase = _TimerPagePhase.waitingForShake;
-    setState(() { _waitingForShake = true; _lastAcceleration = null; _lastShakeAt = null; });
+    _waitingForShake = true;
+    _lastAcceleration = null;
+    _lastShakeAt = null;
     _startShakeDetection();
+
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -409,9 +467,12 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
         ],
       ),
     );
-    if (!mounted || !_waitingForShake || _isCompleted || _phase == _TimerPagePhase.completing) return;
+
+    if (!mounted || !_waitingForShake || _isCompleted || _isShakeLocked || _phase == _TimerPagePhase.completing) return;
     _phase = _TimerPagePhase.idle;
-    setState(() => _waitingForShake = false);
+    _waitingForShake = false;
+    _isShaking = false;
+    _pauseShakeProgress();
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = null;
     _lastAcceleration = null;
@@ -425,9 +486,41 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final progress = (_running && _endsAt != null ? _endsAt!.difference(DateTime.now()).inMilliseconds / (widget.task.seconds * 1000) : _seconds / widget.task.seconds).clamp(0.0, 1.0);
+    final isShakeAnimationVisible = _isShaking && !_isCompleted && !_isShakeLocked;
     final content = Card(
       elevation: 0, color: const Color(0xfffff0e8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+        if (isShakeAnimationVisible) ...[
+          AnimatedOpacity(
+            opacity: isShakeAnimationVisible ? 1 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.65),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 150,
+                    child: Image.asset(
+                      'assets/animations/ice_animation.gif',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${(_shakeProgress * 100).round()}%',
+                    style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xff89534a)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         if (widget.largeTimer) const Spacer(),
         if (widget.largeTimer) Expanded(child: Center(child: MeltingIceTimer(progress: progress, label: formatClock(_seconds))))
         else Row(children: [Expanded(child: widget.showTaskDetails ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

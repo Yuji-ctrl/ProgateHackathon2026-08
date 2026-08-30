@@ -530,7 +530,11 @@ class _AlbumCard extends StatelessWidget {
                     const Positioned(
                       right: 0,
                       top: 0,
-                      child: Text('👻', style: TextStyle(fontSize: 25)),
+                      child: Image(
+                        image: AssetImage('assets/images/ghost.png'),
+                        width: 32,
+                        height: 32,
+                      ),
                     ),
                 ],
               ),

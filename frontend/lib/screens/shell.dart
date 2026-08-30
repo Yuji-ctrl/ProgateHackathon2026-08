@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -59,10 +60,26 @@ class _ShellState extends State<Shell> {
     row['melt_minutes'] as int,
     id: row['id'] as String,
     detail: row['detail'] as String? ?? '',
+    ghost: row['is_ghost'] as bool? ?? false,
+    eaten: row['is_eaten'] as bool? ?? false,
     startedAt: row['started_at'] != null
         ? DateTime.parse(row['started_at'] as String)
         : null,
   );
+
+  final math.Random _random = math.Random();
+
+  int get _ghostCount =>
+      _active.where((task) => task.ghost).length + _album.where((task) => task.ghost).length;
+
+  // 亡霊がホーム画面に一時的にうようよする期間。イベントが起きるたびに延長される。
+  DateTime? _ghostsVisibleUntil;
+
+  int get _roamingGhostCount {
+    final until = _ghostsVisibleUntil;
+    if (until == null || DateTime.now().isAfter(until)) return 0;
+    return _ghostCount;
+  }
 
   void _applyLoadedTasks(List<Map<String, dynamic>> rows) {
     setState(() {
@@ -190,7 +207,6 @@ class _ShellState extends State<Shell> {
   }
 
   void _openExpiredTask(Task task) {
-    _forcedTaskId = task.id;
     Navigator.of(context)
         .push(
           MaterialPageRoute(
@@ -212,7 +228,96 @@ class _ShellState extends State<Shell> {
     if (_forcedTaskId != null || !mounted) return;
     final expired = _findExpiredTask();
     if (expired == null) return;
-    _openExpiredTask(expired);
+    _forcedTaskId = expired.id;
+    _handleExpiredTask(expired);
+  }
+
+  Future<void> _handleExpiredTask(Task task) async {
+    Task ghosted = task;
+    try {
+      ghosted = await _turnIntoGhost(task);
+    } catch (_) {
+      // DB更新などに失敗しても、強制編集画面には必ず進める。
+    }
+    if (!mounted) {
+      _forcedTaskId = null;
+      return;
+    }
+    _openExpiredTask(ghosted);
+  }
+
+  // 期限切れタスクを亡霊にする: DBに保存し、アルバムを侵食し、結果をアラートで伝える。
+  Future<Task> _turnIntoGhost(Task task) async {
+    final ghosted = task.asGhost();
+    try {
+      await Supabase.instance.client.from('ice_tasks').update({'is_ghost': true}).eq('id', task.id as String);
+    } catch (_) {
+      // is_ghostカラムが無い等でも、見た目上は亡霊のまま進める。
+    }
+    _replaceTaskInList(task, ghosted);
+
+    // ホーム画面に亡霊が漂う期間を延長する(20秒)。時間が来たら自動的に消えるよう再描画を予約する。
+    _ghostsVisibleUntil = DateTime.now().add(const Duration(seconds: 20));
+    Future.delayed(const Duration(seconds: 20), () {
+      if (mounted) setState(() {});
+    });
+
+    final eaten = await _eatAlbum();
+
+    if (mounted) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('かき氷が亡霊になった…'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Image.asset('assets/images/ghost3.png', width: 96, height: 96)),
+              const SizedBox(height: 12),
+              const Text('タスクを完了できず、かき氷は亡霊になった！'),
+              if (eaten.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('そして亡霊がアルバムの「${eaten.map((task) => task.title).join('」「')}」を食べてしまった…'),
+              ],
+            ],
+          ),
+          actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('わかった'))],
+        ),
+      );
+    }
+    return ghosted;
+  }
+
+  // アルバムから1〜5個ランダムに食べる(is_eatenを立てるだけで、アルバムからは消さない)。低確率(5%)で残り全部食べてしまう。
+  Future<List<Task>> _eatAlbum() async {
+    final candidates = _album.where((task) => !task.eaten).toList()..shuffle(_random);
+    if (candidates.isEmpty) return const [];
+    final eatAll = _random.nextDouble() < 0.05;
+    final eatCount = eatAll ? candidates.length : math.min(1 + _random.nextInt(5), candidates.length);
+    final targets = candidates.take(eatCount).toList();
+
+    final supabase = Supabase.instance.client;
+    final eatenTasks = <Task>[];
+    for (final task in targets) {
+      final eaten = task.asEaten();
+      try {
+        await supabase.from('ice_tasks').update({'is_eaten': true}).eq('id', task.id as String);
+      } catch (_) {
+        // DB更新に失敗しても、見た目上は食べられた状態にしておく。
+      }
+      eatenTasks.add(eaten);
+    }
+    if (mounted) {
+      setState(() {
+        for (final eaten in eatenTasks) {
+          final index = _album.indexOf(eaten);
+          if (index != -1) _album[index] = eaten;
+        }
+      });
+    }
+    return eatenTasks;
   }
 
   @override
@@ -224,6 +329,7 @@ class _ShellState extends State<Shell> {
                 ? HomeScreen(
                     active: _active,
                     categoryColor: _categoryColor,
+                    ghostCount: _roamingGhostCount,
                     onOpenTask: _openTimer,
                     onNewTask: _newTask,
                     onOpenAlbum: () => setState(() => _tab = 1),

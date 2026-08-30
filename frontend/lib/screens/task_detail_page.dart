@@ -242,7 +242,15 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: const Color(0xffffe1d4), borderRadius: BorderRadius.circular(12)),
-              child: const Text('氷が溶けきりました。時間を再設定するか、削除してください。', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xff89534a))),
+              child: Row(
+                children: [
+                  Image.asset('assets/images/ghost.png', width: 56, height: 56),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text('氷が溶けきりました。時間を再設定するか、削除してください。', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xff89534a))),
+                  ),
+                ],
+              ),
             ),
           ),
         TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'タイトル', border: OutlineInputBorder())), const SizedBox(height: 16),

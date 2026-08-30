@@ -365,8 +365,13 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     if (!mounted || _endsAt == null || _isCompleted || _phase == _TimerPagePhase.completing) return;
     final remaining = _endsAt!.difference(DateTime.now()).inSeconds;
     if (remaining <= 0) {
-      _phase = _TimerPagePhase.completing;
-      _completeTaskWithAnimation();
+      // Time running out only stops the countdown — finishing the task
+      // still requires the shake (or the skip-shake button), same as
+      // before the timer expires. Auto-completing here would mark the
+      // task done without the user ever confirming it.
+      _timer?.cancel();
+      _ticker.stop();
+      setState(() { _seconds = 0; _running = false; });
       return;
     }
     setState(() => _seconds = remaining);
@@ -376,8 +381,9 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     if (!mounted || !_running || _endsAt == null || _isCompleted || _phase == _TimerPagePhase.completing) return;
     final remaining = _endsAt!.difference(DateTime.now());
     if (remaining <= Duration.zero) {
-      _phase = _TimerPagePhase.completing;
-      _completeTaskWithAnimation();
+      _timer?.cancel();
+      _ticker.stop();
+      setState(() { _seconds = 0; _running = false; });
       return;
     }
     final seconds = remaining.inSeconds;

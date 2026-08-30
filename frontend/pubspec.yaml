@@ -49,6 +49,12 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -67,6 +73,9 @@ flutter:
     - assets/images/book1.png
     - assets/images/book2.png
     - assets/images/paper.png
+    - assets/images/ghost.png
+    - assets/images/ghost2.png
+    - assets/images/ghost3.png
     - assets/images/red.png
     - assets/images/orange.png
     - assets/images/yellow.png

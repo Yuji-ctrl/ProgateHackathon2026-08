@@ -34,6 +34,11 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  flutter_foreground_task: ^11.0.1
+  sensors_plus: ^7.1.0
+  supabase_flutter: ^2.6.0
+  shared_preferences: ^2.5.3
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -45,6 +50,12 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -58,9 +69,25 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/images/background.png
+    - assets/images/book1.png
+    - assets/images/book2.png
+    - assets/images/paper.png
+    - assets/images/ghost.png
+    - assets/images/ghost2.png
+    - assets/images/ghost3.png
+    - assets/images/red.png
+    - assets/images/orange.png
+    - assets/images/yellow.png
+    - assets/images/yellowgreen.png
+    - assets/images/green.png
+    - assets/images/blue.png
+    - assets/images/purple.png
+    - assets/images/brown.png
+    - assets/sounds/chime.mp3
+    - assets/sounds/page_turn.mp3
+    - assets/animations/ice_animation.gif
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

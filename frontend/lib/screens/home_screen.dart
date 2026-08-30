@@ -312,44 +312,110 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _taskCard(Task task) {
     final color = widget.categoryColor(task.category);
-    return Material(
-      color: Colors.white.withAlpha(240),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(4),
-        side: BorderSide(color: color.withAlpha(140), width: 1.5),
-      ),
-      elevation: 2,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(4),
-        onTap: () => widget.onOpenTask(task),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 14, 8, 8),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                top: -18,
-                left: 0,
-                right: 0,
-                child: Icon(Icons.push_pin, color: color, size: 20),
-              ),
-              Center(
-                child: Text(
-                  task.title,
-                  textAlign: TextAlign.center,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xff4a3a34),
-                  ),
-                ),
-              ),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double cardWidth = constraints.maxWidth;
+        final double cardHeight = constraints.maxHeight;
+        final double usableWidth = (cardWidth - 18).clamp(
+          18.0,
+          double.infinity,
+        );
+        final double usableHeight = (cardHeight - 26).clamp(
+          18.0,
+          double.infinity,
+        );
+
+        final int titleLength = task.title.length;
+        double bestFontSize = 9.0;
+        int bestMaxLines = 1;
+
+        for (int maxLines in [2, 1]) {
+          for (double size = 22.0; size >= 9.0; size -= 0.5) {
+            final style = TextStyle(
+              fontSize: size,
+              fontWeight: size >= 16
+                  ? FontWeight.w800
+                  : size >= 11
+                  ? FontWeight.w700
+                  : FontWeight.w600,
+              color: const Color(0xff4a3a34),
+              height: 1.1,
+            );
+
+            final textPainter = TextPainter(
+              text: TextSpan(text: task.title, style: style),
+              textAlign: TextAlign.center,
+              maxLines: maxLines,
+              textDirection: Directionality.of(context),
+            )..layout(maxWidth: usableWidth);
+
+            final bool fitsWidth = textPainter.didExceedMaxLines == false;
+            final bool fitsHeight = textPainter.height <= usableHeight + 2;
+            final bool isReasonable =
+                (maxLines == 2 && titleLength <= 18) ||
+                (maxLines == 1 && titleLength <= 26) ||
+                titleLength <= 14;
+
+            if (fitsWidth && fitsHeight && isReasonable) {
+              bestFontSize = size;
+              bestMaxLines = maxLines;
+              break;
+            }
+          }
+
+          if (bestFontSize > 9.0) {
+            break;
+          }
+        }
+
+        final effectiveFontSize =
+            (bestFontSize + (titleLength > 12 ? -0.5 : 0.0)).clamp(9.0, 22.0);
+        final effectiveWeight = effectiveFontSize >= 16
+            ? FontWeight.w800
+            : effectiveFontSize >= 11
+            ? FontWeight.w700
+            : FontWeight.w600;
+
+        return Material(
+          color: Colors.white.withAlpha(240),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: BorderSide(color: color.withAlpha(140), width: 1.5),
           ),
-        ),
-      ),
+          elevation: 2,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(4),
+            onTap: () => widget.onOpenTask(task),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 14, 8, 8),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    top: -18,
+                    left: 0,
+                    right: 0,
+                    child: Icon(Icons.push_pin, color: color, size: 20),
+                  ),
+                  Center(
+                    child: Text(
+                      task.title,
+                      textAlign: TextAlign.center,
+                      maxLines: bestMaxLines,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: effectiveFontSize,
+                        fontWeight: effectiveWeight,
+                        color: const Color(0xff4a3a34),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
